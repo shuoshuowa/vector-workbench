@@ -31,7 +31,6 @@ async function action(a){
     case 'addText':e=M.mark(M.make('text',{x:0,y:0,transform:'translate('+v.width*.35+' '+v.height*.45+')','font-size':16*M.PT,'font-family':'sans-serif',fill:'#000000'}),'text');e.textContent='新增文字';p.append(e);VectorParagraphs.store(e,{x:0,y:0,width:40,leading:1.2});break;
     case 'text':M.setText(e,a);break;
     case 'appearance':VectorEffects.commit(p,e,a.fx);break;
-    case 'retouch':{const file=files.get(a.asset);if(file?.type!=='image/png')throw Error('修补图片不可用。');PhotoSource.replace(p,e,await F.dataURL(file));break;}
     case 'typeStyle':VectorTextStyle.commit(p,e,a.style);break;
     case 'paragraph':VectorParagraphs.store(e,a.frame);M.setText(e,{value:e.dataset.text??e.textContent});break;
     case 'geometry':M.geom(p,e,a);break;
@@ -98,5 +97,5 @@ async function request(route,opts={}){
  if(['open','blank','close'].includes(cmd))VectorFonts.retain(pages);
  rev++;render();persist();return state();
 }
-window.VectorBrowser={request,photoSource:id=>current()?PhotoSource.source(current(),M.find(current(),id)):null,artboards:boardList,artPreview:i=>new Blob([svgCache.get(pages[i])||M.xml(pages[i])],{type:'image/svg+xml'}),scene:()=>M.scene(current()),sourceHits:(...point)=>M.sourceHits(current(),...point)};
+window.VectorBrowser={request,artboards:boardList,artPreview:i=>new Blob([svgCache.get(pages[i])||M.xml(pages[i])],{type:'image/svg+xml'}),scene:()=>M.scene(current()),sourceHits:(...point)=>M.sourceHits(current(),...point)};
 })();
