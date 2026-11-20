@@ -2,7 +2,7 @@
 
 Edit a product manual directly on the artboard. Open a PDF, change a heading, move a clipped photo or resize a group, then export your pages as an editable PDF. The browser edition processes documents on the visitor’s device.
 
-**[Open the live editor](https://vector.zhangshuo.work/)** · **[Download for Windows x64](https://github.com/shuoshuowa/vector-workbench/releases/download/v1.2.0/VectorWorkbench-Windows-x64.zip)** · **[Download the two-page sample](https://raw.githubusercontent.com/shuoshuowa/vector-workbench/main/examples/fold-guide.pdf)** · [Latest release](https://github.com/shuoshuowa/vector-workbench/releases/latest) · [中文](README.md)
+**[Open the live editor](https://vector.zhangshuo.work/)** · **[Download for Windows x64](https://github.com/shuoshuowa/vector-workbench/releases/latest/download/VectorWorkbench-Windows-x64.zip)** · **[Download the two-page sample](https://raw.githubusercontent.com/shuoshuowa/vector-workbench/main/examples/fold-guide.pdf)** · [Latest release](https://github.com/shuoshuowa/vector-workbench/releases/latest) · [中文](README.md)
 
 [![Vector Workbench editing the Fold F/01 manual](docs/images/workbench.png)](https://vector.zhangshuo.work/)
 

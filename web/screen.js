@@ -441,16 +441,29 @@ function setSceneCorners(node,r,box){
   if(!node.corner){
     let el=node.el;
     if(node.base.type==='mask'){const use=el.querySelector('clipPath use');el=use&&el.ownerDocument.getElementById((use.getAttribute('href')||use.getAttributeNS('http://www.w3.org/1999/xlink','href')||'').slice(1));}
+    if(!el&&node.base.type==='mask'){
+      const owner=node.el.matches('[data-clip]')?node.el:node.el.querySelector('[data-clip]');
+      if(owner)el=owner.ownerDocument.getElementById(owner.dataset.clip)?.querySelector('rect');
+    }
+    if(el?.localName==='g'&&node.base.type==='rect')el=el.querySelector('rect');
     if(!el||!['rect','path'].includes(el.localName))return;
     const b=el.getBBox();if(!b.width||!b.height)return;
     node.corner={el,b,path:el.getAttribute('d'),rx:el.getAttribute('rx'),ry:el.getAttribute('ry')};
   }
   const {el,b,path,rx,ry}=node.corner;
-  if(r===node.base.radius){
+  const resized=Math.abs(box.w-node.base.box.w)+Math.abs(box.h-node.base.box.h)>.000001;
+  if(r===node.base.radius&&!(resized&&node.base.circularCorners)){
     for(const [k,v] of [['d',path],['rx',rx],['ry',ry]])if(v===null)el.removeAttribute(k);else el.setAttribute(k,v);
     return;
   }
-  const w=b.width,h=b.height,x=b.x,y=b.y,X=x+w,Y=y+h,R=Math.min(w/2,Math.max(0,r/box.w*w)),S=Math.min(h/2,Math.max(0,r/box.h*h));
+  if(el.localName==='rect'&&typeof VectorModel!=='undefined'){
+    const owner=node.base.type==='mask'?(node.el.matches('[data-clip]')?node.el:node.el.querySelector('[data-clip]')):el;
+    if(owner){
+      const axes=VectorModel.cornerAxes(activeScene.svg,owner);
+      if(axes){node.corner.el=VectorModel.setCornerRadius(axes,r);return;}
+    }
+  }
+  const w=b.width,h=b.height,x=b.x,y=b.y,X=x+w,Y=y+h,radius=Math.max(0,Math.min(r,box.w/2,box.h/2)),R=radius/box.w*w,S=radius/box.h*h;
   if(el.localName==='rect'){el.setAttribute('rx',R);el.setAttribute('ry',S);}
   else{const arc=' A '+R+' '+S+' 0 0 1 ';el.setAttribute('d','M '+(x+R)+' '+y+' H '+(X-R)+arc+X+' '+(y+S)+' V '+(Y-S)+arc+(X-R)+' '+Y+' H '+(x+R)+arc+x+' '+(Y-S)+' V '+(y+S)+arc+(x+R)+' '+y+' Z');}
 }
@@ -487,7 +500,7 @@ function renderVectorObjects(moves=[]){
       let parent=node.parentWorld,ancestor=id;while(ancestor.includes('/')){ancestor=ancestor.slice(0,ancestor.lastIndexOf('/'));if(deltas.has(ancestor)){parent=deltas.get(ancestor).multiply(parent);break;}}deltas.set(id,matrix);
       const m=parent.inverse().multiply(matrix).multiply(node.world);
       node.el.setAttribute('transform','matrix('+[m.a,m.b,m.c,m.d,m.e,m.f].join(' ')+')');
-      if(o.canRound&&(node.corner||to.r!==undefined||o.radius!==node.base.radius))setSceneCorners(node,to.r??o.radius??0,to);
+      if(o.canRound&&(node.corner||to.r!==undefined||o.radius!==node.base.radius||node.base.circularCorners&&(to.w!==b.w||to.h!==b.h)))setSceneCorners(node,to.r??o.radius??0,to);
       if(o.canCrop&&(node.cropImage||to.cropDraft||o.cropDraft)){paintCrop(scene,node,to.cropDraft||o.cropDraft);if(node.cropImage)cropOverlay.querySelector('[data-id="'+CSS.escape(id)+'"]')?.remove();}
       paintLocalAppearance(scene,node,o,to);
     }

@@ -41,15 +41,54 @@ function box(page,e){
 function mapped(m,x,y,w,h){const ps=[[x,y],[x+w,y],[x,y+h],[x+w,y+h]].map(([u,v])=>new DOMPoint(u,v).matrixTransform(m));
   const x0=Math.min(...ps.map(p=>p.x)),y0=Math.min(...ps.map(p=>p.y));return {x:x0,y:y0,w:Math.max(.01,Math.max(...ps.map(p=>p.x))-x0),h:Math.max(.01,Math.max(...ps.map(p=>p.y))-y0)};}
 function move(page,e,m){const before=world(page,e),par=world(page,e.parentElement);transform(e,par.inverse().multiply(m).multiply(before));}
-function geom(page,e,b){const old=box(page,e);move(page,e,new DOMMatrix().translate(b.x,b.y).scale(b.w/old.w,b.h/old.h).translate(-old.x,-old.y));}
+// Corner controls are in board millimetres. SVG radii are in the rectangle's local axes.
+function cornerAxes(page,e,ownerMatrix){
+  const rect=e.localName==='rect'?e:clipRect(page,e);if(!rect)return null;
+  let m=ownerMatrix||world(page,e);
+  if(rect!==e){
+    const clip=rect.closest('clipPath');if(!clip)return null;
+    if(clip.getAttribute('clipPathUnits')==='objectBoundingBox'){
+      const box=e.getBBox();m=m.translate(box.x,box.y).scale(box.width,box.height);
+    }
+    const chain=[];for(let n=rect;n;n=n.parentElement){chain.unshift(n);if(n===clip)break;}
+    for(const n of chain){const list=n.transform?.baseVal;for(let i=0;list&&i<list.numberOfItems;i++)m=m.multiply(list.getItem(i).matrix);}
+  }
+  const sx=Math.hypot(m.a,m.b),sy=Math.hypot(m.c,m.d);
+  if(!sx||!sy)return null;
+  const w=rect.width.baseVal.value,h=rect.height.baseVal.value;
+  const rx=(rect.hasAttribute('rx')?rect.rx:rect.ry).baseVal.value,ry=(rect.hasAttribute('ry')?rect.ry:rect.rx).baseVal.value;
+  return {owner:e,rect,sx,sy,limit:Math.min(w*sx,h*sy)/2,x:Math.min(w/2,rx)*sx,y:Math.min(h/2,ry)*sy};
+}
+function setCornerRadius(axes,value){
+  if(!axes||!Number.isFinite(value))return;
+  const r=Math.min(Math.max(0,value),axes.limit);
+  let rect=axes.rect;
+  // An imported clipping path can be shared by several independent image frames.
+  if(axes.owner!==rect&&!axes.owner.contains(rect)&&axes.owner.hasAttribute('clip-path')){
+    const clip=clone(rect.closest('clipPath')),defs=make('defs');
+    defs.append(clip);axes.owner.prepend(defs);
+    axes.owner.setAttribute('clip-path','url(#'+clip.id+')');axes.owner.dataset.clip=clip.id;
+    rect=clip.querySelector('rect');
+  }
+  rect.setAttribute('rx',r/axes.sx);rect.setAttribute('ry',r/axes.sy);
+  return rect;
+}
+function circular(axes){return !!axes&&axes.x>0&&Math.abs(axes.x-axes.y)<.00001*Math.max(1,axes.x,axes.y);}
+function geom(page,e,b){
+  const old=box(page,e),resized=Math.abs(b.w-old.w)+Math.abs(b.h-old.h)>.000001;
+  const axes=resized&&(e.localName==='rect'||e.dataset.kind==='mask')?cornerAxes(page,e):null;
+  move(page,e,new DOMMatrix().translate(b.x,b.y).scale(b.w/old.w,b.h/old.h).translate(-old.x,-old.y));
+  if(circular(axes))setCornerRadius(cornerAxes(page,e),axes.x);
+}
 function drawables(root){return [...root.querySelectorAll('[data-vq]')].filter(e=>!e.closest('defs,clipPath,mask,pattern,marker'));}
 function color(value){if(!value||value==='none'||value.startsWith('url('))return null;const ctx=color.ctx||=document.createElement('canvas').getContext('2d');ctx.fillStyle='#000000';ctx.fillStyle=value;return /^#[a-f0-9]{6}$/i.test(ctx.fillStyle)?ctx.fillStyle:'#000000';}
 function measure(page){mount(page);const vb=page.viewBox.baseVal;
   return drawables(page).reverse().map((e,index,rows)=>{const b=box(page,e),type=e.dataset.kind,style=getComputedStyle(e),ink=color(style.fill),stroke=color(style.stroke),wm=world(page,e),scale=Math.hypot(wm.c,wm.d)||1;const clipped={x:Math.max(0,b.x),y:Math.max(0,b.y)};clipped.w=Math.max(0,Math.min(vb.width,b.x+b.w)-clipped.x);clipped.h=Math.max(0,Math.min(vb.height,b.y+b.h)-clipped.y);
+    const corners=(e.localName==='rect'||type==='mask')?cornerAxes(page,e,wm):null;
     const row={id:id(e),uid:e.dataset.vq,type,name:e.dataset.name||names[type],box:b,hit:clipped,layer:e.closest('[data-layer]')?.dataset.layer||'画板对象',locked:false,
       canForward:index>0,canBackward:index<rows.length-1,canImage:['image','mask','rect'].includes(type),canCrop:type==='mask'&&!!e.querySelector('image'),
       canRound:e.localName==='rect'||(type==='mask'&&!!clipRect(page,e)),canFill:['rect','shape'].includes(type),filled:!!ink,fill:ink,
-      stroke:{enabled:!!stroke,width:stroke?Math.max(.1,parseFloat(style.strokeWidth)*scale/PT):1,color:stroke},radius:Number(e.getAttribute('rx')||0)*scale};
+      stroke:{enabled:!!stroke,width:stroke?Math.max(.1,parseFloat(style.strokeWidth)*scale/PT):1,color:stroke},radius:corners?.x||0,circularCorners:circular(corners)};
     if(type==='text'){const t=e.querySelector('tspan')||e,s=getComputedStyle(t);row.text=e.dataset.text??([...e.querySelectorAll('tspan[data-line]')].map(n=>n.textContent).join('\n')||e.textContent);row.name=row.text.slice(0,38)||'空文字';row.pt=+(parseFloat(s.fontSize)*scale/PT).toFixed(3)||12;row.fontSource=VectorFonts.metadata(e);row.font=row.fontSource?.name||s.fontFamily.replace(/["']/g,'').split(',')[0];row.fill=color(s.fill);}
     if(type==='text'){const s=getComputedStyle(e.querySelector('tspan')||e);row.paragraph={...(VectorParagraphs.info(e)||VectorParagraphs.inferred(e)),weight:s.fontWeight,style:s.fontStyle,matrix:[wm.a,wm.b,wm.c,wm.d,wm.e,wm.f]};row.overflow=Number(e.dataset.overflow)||0;}
     row.stroke=VectorStroke.read(e,row.stroke);row.canPlaceStroke=VectorStroke.eligible(e);row.effects=VectorEffects.read(e);if(e.dataset.solidFill)row.fill=color(e.dataset.solidFill);return row;});}
@@ -108,6 +147,6 @@ function newShape(a){const {x,y,w,h}=a;let e;
   else if(a.shape==='line')e=make('line',{x1:x,y1:a.reverse?y+h:y,x2:x+w,y2:a.reverse?y:y+h,stroke:'#40376b','stroke-width':2*PT});
   else e=make('rect',{x,y,width:w,height:h,rx:a.shape==='rounded'?Math.min(w,h)*.15:0});
   e.setAttribute('fill',a.shape==='line'?'none':'#8979d9');return mark(e,e.localName==='rect'?'rect':'shape');}
-Object.assign(window,{VectorModel:{NS,PT,make,xml,parse,mark,id,find,names,board,mount,sourceHits,world,transform,box,move,geom,drawables,measure,clone,classify,scene,fitPhoto,clipRect,frame,setText,newShape,
+Object.assign(window,{VectorModel:{NS,PT,make,xml,parse,mark,id,find,names,board,mount,sourceHits,world,transform,box,move,geom,cornerAxes,setCornerRadius,drawables,measure,clone,classify,scene,fitPhoto,clipRect,frame,setText,newShape,
   resumeSerial(pages){for(const p of pages)for(const e of drawables(p))serial=Math.max(serial,Number(e.dataset.vq)||0);}}});
 })();

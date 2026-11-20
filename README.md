@@ -2,7 +2,7 @@
 
 在浏览器里改说明书、包装稿和多页 PDF。双击画板上的文字就能改字，拖动文本框就能重新排版，完成后导出一份副本。文件和编辑记录留在当前浏览器。
 
-**[打开在线工作台](https://vector.zhangshuo.work/)**　·　**[下载 Windows x64 便携版](https://github.com/shuoshuowa/vector-workbench/releases/download/v1.2.0/VectorWorkbench-Windows-x64.zip)**　·　**[下载两页示例 PDF](https://raw.githubusercontent.com/shuoshuowa/vector-workbench/main/examples/fold-guide.pdf)**　·　[最新发布](https://github.com/shuoshuowa/vector-workbench/releases/latest)　·　[本地运行](#本地运行)　·　[English](README.en.md)
+**[打开在线工作台](https://vector.zhangshuo.work/)**　·　**[下载 Windows x64 便携版](https://github.com/shuoshuowa/vector-workbench/releases/latest/download/VectorWorkbench-Windows-x64.zip)**　·　**[下载两页示例 PDF](https://raw.githubusercontent.com/shuoshuowa/vector-workbench/main/examples/fold-guide.pdf)**　·　[最新发布](https://github.com/shuoshuowa/vector-workbench/releases/latest)　·　[本地运行](#本地运行)　·　[English](README.en.md)
 
 [![矢量快改工作台：左侧图层列表、中间的阅读架说明书封面、右侧画板属性](docs/images/workbench.png)](https://vector.zhangshuo.work/)
 
