@@ -2,7 +2,7 @@
 
 在浏览器里改说明书、包装稿和多页 PDF。双击画板上的文字就能改字，拖动文本框就能重新排版，完成后导出一份副本。文件和编辑记录留在当前浏览器。
 
-**[打开在线工作台](https://vector.zhangshuo.work/)**　·　**[下载两页示例 PDF](https://raw.githubusercontent.com/shuoshuowa/vector-workbench/main/examples/fold-guide.pdf)**　·　[最新发布](https://github.com/shuoshuowa/vector-workbench/releases/latest)　·　[本地运行](#本地运行)　·　[English](README.en.md)
+**[打开在线工作台](https://vector.zhangshuo.work/)**　·　**[下载 Windows x64 便携版](https://github.com/shuoshuowa/vector-workbench/releases/download/v1.2.0/VectorWorkbench-Windows-x64.zip)**　·　**[下载两页示例 PDF](https://raw.githubusercontent.com/shuoshuowa/vector-workbench/main/examples/fold-guide.pdf)**　·　[最新发布](https://github.com/shuoshuowa/vector-workbench/releases/latest)　·　[本地运行](#本地运行)　·　[English](README.en.md)
 
 [![矢量快改工作台：左侧图层列表、中间的阅读架说明书封面、右侧画板属性](docs/images/workbench.png)](https://vector.zhangshuo.work/)
 
@@ -29,7 +29,7 @@
 | 只保留照片的一部分 | 把矩形盖在想取的区域，选择 **从画板复制图片并原位裁切**。框内副本保留原图的位置、缩放和旋转。 |
 | 摆齐或复制多个元素 | 框选或按住 Shift 点选，拖角点整体缩放。Alt 拖动复制，Shift + Alt 沿水平或垂直方向复制。支持对齐、等距分布和智能参考线。 |
 | 调整前后遮挡 | 在左侧拖动对象排序，或用上移、下移、置顶和置底。 |
-| 一份文件排多页 | 按 Shift+O 在同一工作区绘制、拖动、改名或排列画板。Alt 拖动复制画板；左侧顺序控制导出顺序。可选 mm、cm、in、pt 和 px，像素按 96 px/in 换算；Ctrl+R 切换标尺。 |
+| 一份文件排多页 | 按 Shift+O 在同一工作区绘制、拖动、改名或排列画板。Alt 拖动复制画板；左侧顺序控制导出顺序。在「画板单位」切换 mm、cm、in、pt 或 px。PSD 像素使用原稿分辨率，其余按 96 px/in 换算。Ctrl+R 切换标尺。 |
 
 ![两块画板并排展示封面和内页](docs/images/artboards.png)
 
@@ -49,6 +49,12 @@
 
 PDF 的效果取决于原稿。可读取的文字支持改写；已经转曲的文字按路径编辑，照片里的文字按像素处理。复杂透明蒙版、混合模式以及 PSD 特效可能出现差异。浏览器会使用可用的内嵌字形，新增字符缺字时可选择 **匹配本机原字体**。在 Illustrator 打开导出 PDF 时，部分正文会按行或字体段显示。工作台导出的 PDF 带有可供本项目恢复编辑的画板数据。
 
+## Windows 桌面版
+
+下载便携 ZIP 并完整解压，双击 **VectorWorkbench.exe**。支持 Windows 10/11 x64，使用 Microsoft Edge WebView2 Runtime。编辑器、中文回退字体和双页示例随包提供，可离线使用。运行桌面版无需 Node.js 或 Illustrator。点击「导出」可选择保存位置。
+
+如需重新打包，在 Windows x64 上安装 Node.js 22+ 和 PowerShell 7 后，在仓库根目录运行 `pwsh -File windows/package.ps1`。ZIP 和 SHA-256 校验文件会生成在 `windows/dist/`。
+
 ## 本地运行
 
 安装 **Node.js 22 或更高版本** 后，在终端运行以下命令。
@@ -65,7 +71,7 @@ npm start
 
 **自行托管**　把 `online/dist/` 部署到支持静态文件的 HTTPS 服务。使用 Cloudflare Workers Static Assets 时在 `online/` 运行 `npx wrangler login` 和 `npx wrangler deploy`。仓库中的配置使用通用 Worker 名称，可替换成自己的名称。使用其他服务器时请配置 `.js`、`.wasm` 的 MIME 类型，并应用 `dist/_headers` 中的响应头。
 
-**Windows + Illustrator 本机版**　电脑已安装 Node.js 和已激活的 Adobe Illustrator 时，可在仓库根目录运行 `node server.cjs`，或双击 `启动矢量快改.vbs`。此版本通过本机 Illustrator 处理设计稿，并支持原生 AI 导出。[两种运行方式与常见问题](docs/usage.md)
+**Windows + Illustrator 本机版**　电脑已安装 Node.js 和已激活的 Adobe Illustrator 时，可在仓库根目录运行 `node server.cjs`，或双击 `启动矢量快改.vbs`。此版本通过本机 Illustrator 处理设计稿，并支持原生 AI 导出。[运行方式与常见问题](docs/usage.md)
 
 ## 隐私与保存
 

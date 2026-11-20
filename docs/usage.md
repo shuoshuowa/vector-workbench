@@ -1,12 +1,18 @@
 # 使用与运行
 
-| | 浏览器版 | Windows 本机版 |
+| | 浏览器版 | Windows + Illustrator 联动版 |
 | --- | --- | --- |
 | 适合 | 在其他电脑打开链接，快速改稿 | 用已安装的 Illustrator 处理原生设计文件 |
 | 运行依赖 | 近期桌面浏览器；自行构建需 Node.js 22+ | Windows、Node.js、已激活的 Illustrator、Windows PowerShell |
 | 文件处理位置 | 当前浏览器 | 当前电脑的 Illustrator 工作副本 |
 | 启动 | 构建后在 `online/` 执行 `npm start` | 仓库根目录执行 `node server.cjs` |
 | 原生 AI 导出 | 可用 PDF 继续到 Illustrator 编辑 | 支持 |
+
+Windows x64 便携版使用浏览器版的格式引擎。完整解压后双击 **VectorWorkbench.exe**，可离线打开、编辑和导出。运行依赖、下载地址和构建方法见 [Windows 桌面版](../README.md#windows-桌面版)。
+
+## 切换画板单位
+
+在左侧「页面 → 画板单位」可直接切换当前画板的显示单位。按 Shift+O 进入画板工具后，同一选项在右侧「画板属性」。尺寸和标尺一起换算，当前画板的选择会保存到工程，也会成为下次新建的默认单位。PSD 使用原稿分辨率，普通画板按每英寸 96 像素换算。
 
 ## 带回 Illustrator
 

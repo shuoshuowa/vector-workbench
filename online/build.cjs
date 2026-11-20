@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path');
-const src=path.join(__dirname,'..','web'),out=path.join(__dirname,'dist'),modules=path.join(__dirname,'node_modules');
+const src=path.join(__dirname,'..','web'),out=process.argv[2]?path.resolve(process.argv[2]):path.join(__dirname,'dist'),modules=path.join(__dirname,'node_modules');
 const lib=path.join(out,'lib'),licenses=path.join(out,'licenses');
 for(const d of [out,lib,licenses])fs.mkdirSync(d,{recursive:true});
 function replace(s,a,b){if(!s.includes(a))throw Error('共享工作台入口已变更 '+a);return s.replace(a,b);}

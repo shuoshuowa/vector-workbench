@@ -37,7 +37,8 @@ function saveBoardPreference(key,value){try{localStorage.setItem(key,value);}cat
 function validBoardUnit(unit){return Object.hasOwn(boardUnits,unit);}
 function preferredBoardUnit(){const unit=boardPreference('vq-board-unit','mm');return validBoardUnit(unit)?unit:'mm';}
 function currentBoardUnit(){const unit=doc()?.unit;return validBoardUnit(unit)?unit:preferredBoardUnit();}
-function boardDimensionsLabel(d){const unit=currentBoardUnit(),factor=boardUnits[unit];return num(d.width/factor)+' × '+num(d.height/factor)+' '+unit;}
+function boardUnitFactor(unit,ppi){return unit==='px'&&ppi>0?25.4/ppi:boardUnits[unit];}
+function boardDimensionsLabel(d){const unit=currentBoardUnit(),factor=boardUnitFactor(unit,d.ppi);return num(d.width/factor)+' × '+num(d.height/factor)+' '+unit;}
 function panel(which=''){
   const old=document.body.dataset.panel,narrow=small(),next=narrow?which:'';
   document.body.dataset.panel=next;$('scrim').hidden=!next;
@@ -935,17 +936,17 @@ function startShape(shape){photoTarget=null;setTool('shape:'+shape);panel();list
 const boardFields=[$('blankW'),$('blankH')];
 let dialogMM=[210,297];
 function showBoardMeasurements(){
-  const unit=$('boardUnit').value,factor=boardUnits[unit],minimum=typeof VectorBrowser==='undefined'?5:.01;
+  const unit=$('boardUnit').value,factor=boardUnitFactor(unit,boardMode==='size'?doc()?.ppi:96),minimum=typeof VectorBrowser==='undefined'?5:.01;
   for(const [i,input] of boardFields.entries()){
     input.min=Math.floor(minimum/factor*1e7)/1e7;input.max=Math.ceil(2000/factor*1e7)/1e7;
     input.value=Number.isFinite(dialogMM[i])?Number((dialogMM[i]/factor).toFixed(7)):'';
   }
   const hints=[];
-  if(unit==='px')hints.push('1 英寸 = 96 像素');
+  if(unit==='px')hints.push('1 英寸 = '+(boardMode==='size'?doc()?.ppi||96:96)+' 像素');
   if(boardMode==='size')hints.push('以左上角为基准，图稿保留原尺寸');
   $('boardDialogHint').textContent=hints.join('。');$('boardDialogHint').hidden=!hints.length;
 }
-boardFields.forEach((input,i)=>input.addEventListener('input',()=>{dialogMM[i]=input.valueAsNumber*boardUnits[$('boardUnit').value];}));
+boardFields.forEach((input,i)=>input.addEventListener('input',()=>{dialogMM[i]=input.valueAsNumber*boardUnitFactor($('boardUnit').value,boardMode==='size'?doc()?.ppi:96);}));
 $('boardUnit').onchange=showBoardMeasurements;
 function boardDialog(mode){
   boardMode=mode;const resize=mode==='size';$('boardDialogTitle').textContent=resize?'调整当前画板尺寸':'新建空白文稿';
@@ -1018,8 +1019,8 @@ function paintRulers(){
   host.hidden=!show;host.parentElement.classList.toggle('show-rulers',show);if(!show)return;
   const unit=currentBoardUnit(),paper=$('paper').getBoundingClientRect(),h=$('horizontalRuler'),v=$('verticalRuler');
   $('rulerUnit').textContent=unit;
-  drawRulerAxis(h,true,paper.left-h.getBoundingClientRect().left,paper.width/d.width*boardUnits[unit]);
-  drawRulerAxis(v,false,paper.top-v.getBoundingClientRect().top,paper.height/d.height*boardUnits[unit]);
+  drawRulerAxis(h,true,paper.left-h.getBoundingClientRect().left,paper.width/d.width*boardUnitFactor(unit,d.ppi));
+  drawRulerAxis(v,false,paper.top-v.getBoundingClientRect().top,paper.height/d.height*boardUnitFactor(unit,d.ppi));
 }
 function scheduleRulers(){if(!rulerFrame)rulerFrame=requestAnimationFrame(paintRulers);}
 $('rulerToggle').onclick=()=>{if(!doc())return;rulersEnabled=!rulersEnabled;saveBoardPreference('vq-show-rulers',rulersEnabled?'1':'0');paintRulers();};

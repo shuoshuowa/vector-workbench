@@ -22,6 +22,7 @@ const Artboards=(()=>{
       let x=a.x??b.x+b.w+gap,y=a.y??b.y;if(!coord(x)||!coord(y))throw Error('画板坐标无效。');
       if(a.x===undefined)while(all.some(v=>x<v.x+v.w&&x+w>v.x&&y<v.y+v.h&&y+h>v.y))x=Math.max(...all.filter(v=>y<v.y+v.h&&y+h>v.y).map(v=>v.x+v.w))+gap;
       const copy=a.op==='duplicate'?VectorModel.clone(p):VectorModel.board(w,h,b.unit);
+      if(p.dataset.psdResolution)copy.dataset.psdResolution=p.dataset.psdResolution;
       set(copy,{x,y,name:nextName(pages,a.op==='duplicate'?b.name+' 副本':'')});pages.splice(i+1,0,copy);return i+1;
     }
     if(a.op!=='change')throw Error('未知画板操作。');

@@ -14,7 +14,7 @@ async function pdfPages(buffer,ai=false){
     const attachments=await pdf.getAttachments(),project=attachments?.['vector-workbench.json'];
     if(project){const obj=JSON.parse(new TextDecoder().decode(project.content));if(obj.version===1&&Array.isArray(obj.pages)&&obj.pages.length===pdf.numPages){
       await lib('purify');const restored=obj.pages.map(s=>svgPage(s,true));M.resumeSerial(restored);for(const root of restored){root.rebuildPdfText=!obj.pdfTextVersion&&root.dataset.sourcePage===undefined;await VectorFonts.hydrate(root);VectorParagraphs.prepare(root);}return restored;}}
-    for(let i=1;i<=pdf.numPages;i++){const p=await pdf.getPage(i),vp=p.getViewport({scale:1}),root=M.board(vp.width*PT,vp.height*PT);
+    for(let i=1;i<=pdf.numPages;i++){const p=await pdf.getPage(i),vp=p.getViewport({scale:1}),root=M.board(vp.width*PT,vp.height*PT,preferredBoardUnit());
       const renderer=new pdfjsLib.SVGGraphics(p.commonObjs,p.objs,true);renderer.embedFonts=true;
       const embed=renderer.addFontStyle;renderer.addFontStyle=function(font){if(font.data?.length)embed.call(this,font);};
       const sourceFonts=VectorFonts.capture(renderer);
@@ -46,10 +46,10 @@ function svgPage(s,project=false){
   const mm=(value,def)=>{const m=/^([\d.+-]+)(mm|cm|in|pt|px)?$/.exec(value||'');return m?Number(m[1])*({mm:1,cm:10,in:25.4,pt:PT,px:25.4/96}[m[2]||'px']):def;};
   const w=mm(page.getAttribute('width'),vb.width*25.4/96||210),h=mm(page.getAttribute('height'),vb.height*25.4/96||297);
   if(!(w>0&&h>0))throw Error('SVG 画板尺寸无效。');
-  const declared=page.getAttribute('width')?.match(/(mm|cm|in|pt|px)$/)?.[1];const root=M.board(w,h,declared||'mm'),g=M.make('g',{transform:'scale('+(w/(vb.width||w*96/25.4))+' '+(h/(vb.height||h*96/25.4))+') translate('+(-vb.x)+' '+(-vb.y)+')'});g.append(...page.childNodes);root.append(g);return VectorShapeFills.importSvg(M.classify(root));
+  const declared=page.getAttribute('width')?.match(/(mm|cm|in|pt|px)$/)?.[1];const root=M.board(w,h,declared||'px'),g=M.make('g',{transform:'scale('+(w/(vb.width||w*96/25.4))+' '+(h/(vb.height||h*96/25.4))+') translate('+(-vb.x)+' '+(-vb.y)+')'});g.append(...page.childNodes);root.append(g);return VectorShapeFills.importSvg(M.classify(root));
 }
 async function psdPage(bytes){await lib('psd');const psd=agPsd.readPsd(bytes),resolution=psd.imageResources?.resolutionInfo?.horizontalResolution||72,mm=25.4/resolution;
-  const unit=Math.abs(resolution-96)<.001?'px':'mm',ns='https://vector.zhangshuo.work/ns/artboards/1.0/';let ox=0,oy=0;
+  const preferred=boardPreference('vq-board-unit','px'),unit=validBoardUnit(preferred)?preferred:'px',ns='https://vector.zhangshuo.work/ns/artboards/1.0/';let ox=0,oy=0;
   if(psd.imageResources?.xmpMetadata){const xml=new DOMParser().parseFromString(psd.imageResources.xmpMetadata,'application/xml'),tag=xml.getElementsByTagNameNS('http://www.w3.org/1999/02/22-rdf-syntax-ns#','Description')[0];if(tag?.hasAttributeNS(ns,'originX')){const x=Number(tag.getAttributeNS(ns,'originX')),y=Number(tag.getAttributeNS(ns,'originY'));if(Number.isFinite(x)&&Number.isFinite(y)){ox=x;oy=y;}}}
   function layers(list,par){for(const l of list||[]){if(l.hidden)continue;let el;
     if(l.children){el=M.make('g',{'data-layer':l.name});layers(l.children,el);}

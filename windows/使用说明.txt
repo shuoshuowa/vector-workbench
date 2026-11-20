@@ -1,0 +1,17 @@
+矢量快改 · Windows x64 便携版
+
+将整个 ZIP 解压到本机文件夹，双击 VectorWorkbench.exe。程序使用当前电脑的 Microsoft Edge WebView2 Runtime，编辑器、示例 PDF、中文回退字体和文件转换组件已随包提供。运行时可以断网；无需安装 Node.js 或 Illustrator。
+
+适用于 Windows 10/11 x64，建议使用 .NET Framework 4.8 和当前的 WebView2 Runtime。如果提示缺少 WebView2，可在微软官网获取 Evergreen x64 独立安装程序。可以在另一台联网电脑下载后拷贝安装。
+https://developer.microsoft.com/microsoft-edge/webview2/#download
+
+点击「打开」或将本地文件拖入工作台。可以先打开 app/examples/fold-guide.pdf。修改完成后点「导出」选择保存位置；要保留完整的编辑状态，请选择工作台工程 .vqproj。退出前请导出需要保留的修改。
+
+本版本使用浏览器版的格式引擎。AI 文件需含 PDF 兼容内容，继续在 Illustrator 中编辑可导出可编辑 PDF。原生 .ai 导出请使用仓库中的 Illustrator 联动版。
+
+版权及第三方条款见 app/licenses。WebView2 SDK 条款见该目录的 WebView2-LICENSE.txt 和 WebView2-NOTICE.txt。商用授权联系 shuoshuowa@gmail.com。
+
+包内的 Ghostscript WebAssembly 转换器及其构建依赖对应源码可免费下载：
+构建脚本 https://github.com/jsscheller/ghostscript-wasm/archive/d45193808b707ebefb3df7560586b3d404d64c39.tar.gz
+Ghostscript https://github.com/ArtifexSoftware/ghostpdl/archive/00f6bd069221701d054abc67909e80ff61561d75.tar.gz
+zlib https://github.com/madler/zlib/archive/21767c654d31d2dccdde4330529775c6c5fd5389.tar.gz
