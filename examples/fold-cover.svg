@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192mm" height="128mm" viewBox="0 0 192 128">
+  <title>折序 F/01 · 桌面阅读架使用手册</title>
+  <rect width="192" height="128" fill="#f6f4ea"/>
+  <rect x="0" y="0" width="192" height="13" fill="#173c36"/>
+  <g font-family="Arial" font-size="2.7" fill="#f6f4ea" letter-spacing=".5">
+    <text x="8" y="8">FOLD FIELDWORK</text><text x="146" y="8">PRODUCT MANUAL</text>
+  </g>
+  <g fill="#173c36"><text x="8" y="35" font-size="16" font-family="Microsoft YaHei" font-weight="700">折序</text>
+    <text x="8.5" y="44.5" font-size="3.5" font-family="Arial" letter-spacing=".6">F / 01</text>
+    <text x="8" y="69" font-size="6.5" font-family="Microsoft YaHei" font-weight="700">桌面阅读架</text>
+    <text x="8" y="76.5" font-size="3.1" font-family="Microsoft YaHei">安装与使用手册</text></g>
+  <path d="M8 85H69" stroke="#8a9b88" stroke-width=".35"/>
+  <g font-family="Microsoft YaHei" font-size="2.9" fill="#3f564b">
+    <text x="8" y="94">展开支架，调节倾角。</text><text x="8" y="100">给正在读的那一页留个位置。</text>
+  </g>
+  <rect x="79" y="18" width="105" height="91" rx="2" fill="#dce9cf"/>
+  <g fill="none" stroke="#a9bf9f" stroke-width=".3">
+    <path d="M86 27H177M86 38H177M86 49H177M86 60H177M86 71H177M86 82H177M86 93H177M86 101H177"/>
+    <path d="M91 23V102M102 23V102M113 23V102M124 23V102M135 23V102M146 23V102M157 23V102M168 23V102"/>
+  </g>
+  <g stroke="#173c36" stroke-width=".9" stroke-linejoin="round">
+    <path d="M97 84L137 99L172 80L132 66Z" fill="#aac29d"/>
+    <path d="M103 83L118 42L156 54L142 95Z" fill="#f6f4ea"/>
+    <path d="M118 42L123 39L161 52L156 54Z" fill="#afc7a3"/>
+    <path d="M156 54L161 52L148 91L142 95Z" fill="#759373"/>
+    <path d="M157 64L167 80L161 83L153 74Z" fill="#557463"/>
+    <path d="M101 77L140 90L144 87L145 92L140 96L101 83Z" fill="#edb547"/>
+    <path d="M115 65L121 49L133 53L127 69Z" fill="#dce9cf" stroke-width=".55"/>
+    <path d="M136 55L149 59M135 58L147 62M134 61L145 65M113 70L143 80M112 73L139 82" fill="none" stroke-width=".55"/>
+  </g>
+  <g font-family="Arial" fill="#173c36"><text x="84" y="24" font-size="2.1" letter-spacing=".45">FIG. A</text><text x="148" y="105" font-size="2.1" letter-spacing=".35">FOLDING STAND</text></g>
+  <path d="M8 114H184" stroke="#173c36" stroke-width=".45"/>
+  <g fill="#466253" font-size="2.5" font-family="Microsoft YaHei"><text x="8" y="121">折序产品档案</text><text x="71" y="121">F/01 · 可编辑示例</text></g>
+  <text x="172" y="121" fill="#173c36" font-family="Arial" font-size="3.3">01 / 02</text>
+</svg>

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192mm" height="128mm" viewBox="0 0 192 128">
+  <title>折序 F/01 · 三步展开</title>
+  <rect width="192" height="128" fill="#f6f4ea"/><rect width="192" height="13" fill="#173c36"/>
+  <g font-family="Arial" font-size="2.7" fill="#f6f4ea" letter-spacing=".5"><text x="8" y="8">FOLD FIELDWORK</text><text x="155" y="8">QUICK START</text></g>
+  <g fill="#173c36"><text x="8" y="33" data-paragraph-width="70" data-paragraph-x="8" data-paragraph-y="33" data-leading="1.2" font-family="Microsoft YaHei" font-size="9" font-weight="700">三步展开</text><text x="8" y="41" font-family="Microsoft YaHei" font-size="3.2">从平放到阅读，把支撑脚轻轻卡入槽位。</text></g>
+  <g fill="#dce9cf"><rect x="8" y="49" width="55" height="53" rx="1.6"/><rect x="68.5" y="49" width="55" height="53" rx="1.6"/><rect x="129" y="49" width="55" height="53" rx="1.6"/></g>
+  <g fill="none" stroke="#173c36" stroke-width="1" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M20 76L42 81L53 77L31 72Z M23 70L45 75L52 65L30 60Z"/>
+    <path d="M79 77L103 82L113 78L90 73Z M84 74L94 59L111 64L102 80 M104 71L109 77"/>
+    <path d="M138 76L160 82L172 77L151 71Z M143 73L151 58L170 64L161 79Z M147 67L163 72 M149 64L165 69"/>
+  </g>
+  <g font-family="Arial" font-size="3.3" font-weight="700" fill="#557463"><text x="12" y="55.8">01</text><text x="73" y="55.8">02</text><text x="133" y="55.8">03</text></g>
+  <g font-family="Microsoft YaHei" font-size="4.2" font-weight="700" fill="#173c36"><text x="12" y="89">抬起面板</text><text x="73" y="89">选择倾角</text><text x="133" y="89">放入书本</text></g>
+  <g font-family="Microsoft YaHei" font-size="2.7" fill="#3f564b"><text x="12" y="96">握住两侧，展开上盖。</text><text x="73" y="96">将支撑脚对准槽位。</text><text x="133" y="96">书脊居中，靠稳托边。</text></g>
+  <path d="M8 114H184" stroke="#173c36" stroke-width=".45"/><text x="8" y="121" fill="#466253" font-size="2.5" font-family="Microsoft YaHei">折序产品档案</text><text x="71" y="121" fill="#466253" font-size="2.5" font-family="Microsoft YaHei">F/01 · 可编辑示例</text><text x="172" y="121" fill="#173c36" font-family="Arial" font-size="3.3">02 / 02</text>
+</svg>

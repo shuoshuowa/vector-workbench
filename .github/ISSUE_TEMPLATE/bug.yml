@@ -1,0 +1,20 @@
+name: 问题反馈
+description: 报告可复现的编辑、导入或导出问题
+title: "[Bug] "
+body:
+  - type: dropdown
+    id: edition
+    attributes:
+      label: 使用版本
+      options: [浏览器版, Windows 本机版]
+    validations: {required: true}
+  - type: input
+    id: environment
+    attributes:
+      label: 操作系统与浏览器或 Illustrator 版本
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤、预期结果与实际结果
+      description: 如涉及文件，请注明格式和页数；仅附可以公开的最小示例。
+    validations: {required: true}

@@ -1,0 +1,10 @@
+* text=auto
+*.js text eol=lf
+*.cjs text eol=lf
+*.jsx text eol=lf
+*.md text eol=lf
+*.ttf binary
+*.png binary
+*.pdf binary
+vendor/** linguist-vendored
+assets/fonts/OFL.txt -whitespace
