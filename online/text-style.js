@@ -6,9 +6,9 @@ const VectorTextStyle=(()=>{
   function source(o){
     const f=o.paragraph,k=scales(f.matrix);
     return {font:o.font,origin:o.fontSource?.name===o.font?{...o.fontSource}:null,pt:o.pt,fill:o.fill||'#000000',
-      weight:f.weight,style:f.style,leading:f.leading,advancePt:f.advance*k.y/PT,trackingPt:f.spacing*k.x/PT,stroke:o.stroke?{...o.stroke}:null};
+      weight:f.weight,style:f.style,align:f.align||'left',leading:f.leading,advancePt:f.advance*k.y/PT,trackingPt:f.spacing*k.x/PT,stroke:o.stroke?{...o.stroke}:null};
   }
-  function applyFrame(f,s,k){Object.assign(f,{weight:s.weight,style:s.style,leading:s.leading,advance:s.advancePt*PT/k.y,spacing:s.trackingPt*PT/k.x});}
+  function applyFrame(f,s,k){Object.assign(f,{weight:s.weight,style:s.style,align:s.align||'left',leading:s.leading,advance:s.advancePt*PT/k.y,spacing:s.trackingPt*PT/k.x});}
   function project(o,s){
     applyFrame(o.paragraph,s,scales(o.paragraph.matrix));
     Object.assign(o,{pt:s.pt,font:s.font,fontSource:s.origin?{...s.origin}:null,fill:s.fill,filled:true,stroke:s.stroke?{...s.stroke}:null});

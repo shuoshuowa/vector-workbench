@@ -16,7 +16,7 @@
   function gradients(d,board,ab){
     var items=board.typeGradients||[];
     for(var k=0;k<items.length;k++){var s=items[k],tag=rgb(s.marker),g=d.gradients.add(),count=0;g.name='画板渐变 '+(k+1);
-      g.type=s.g.kind==='radial'?GradientType.RADIAL:GradientType.LINEAR;g.gradientStops[0].color=rgb(s.g.from);g.gradientStops[1].color=rgb(s.g.to);
+      g.type=s.g.kind==='radial'?GradientType.RADIAL:GradientType.LINEAR;g.gradientStops[0].color=rgb(s.g.from);g.gradientStops[1].color=rgb(s.g.to);g.gradientStops[0].opacity=(s.g.fromAlpha==null?1:s.g.fromAlpha)*100;g.gradientStops[1].opacity=(s.g.toAlpha==null?1:s.g.toAlpha)*100;
       for(var j=0;j<d.textFrames.length;j++){var t=d.textFrames[j];if(!t.characters.length)continue;var ink=t.characters[0].characterAttributes.fillColor;
         if(ink.typename!=='RGBColor'||Math.abs(ink.red-tag.red)>1||Math.abs(ink.green-tag.green)>1||Math.abs(ink.blue-tag.blue)>1)continue;
         var c=new GradientColor(),b=s.box,angle=s.g.angle*Math.PI/180,vx=Math.cos(angle)*b.w*mm,vy=-Math.sin(angle)*b.h*mm;

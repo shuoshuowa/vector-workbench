@@ -10,7 +10,7 @@
     frame=0;if(!session)return;
     const o=chosen();if(o?.id!==session.id||tool!=='select'||!doc()){finish(false);return;}
     const f=o.paragraph,size=VectorParagraphs.fontSize(o),advance=f.advance||f.leading*size;
-    const family=VectorFonts.family(o.font,o.fontSource),styles=VectorParagraphs.typography(f.width,size,family,f.weight,f.style,f.spacing,advance);
+    const family=VectorFonts.family(o.font,o.fontSource),styles=VectorParagraphs.typography(f.width,size,family,f.weight,f.style,f.spacing,advance,f.align);
     const baseline=VectorParagraphs.baseline(styles),unit=size/100;
     const m=new DOMMatrix().scale(px).multiply(new DOMMatrix(f.matrix)).translate(f.x,f.y-baseline*unit).scale(unit);
     Object.assign(input.style,styles,{transform:m.toString(),color:o.fill||'#222'});

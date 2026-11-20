@@ -3,7 +3,7 @@
   const ns='http://www.w3.org/2000/svg',ptMM=25.4/72;
   let mode='layer',gesture=null,tick=0;
   const panel=document.createElement('div');panel.className='text-layout-controls';
-  panel.innerHTML='<div class="text-modes"><button type="button" data-text-mode="layer">文字图层</button><button type="button" data-text-mode="frame">文本框</button></div><small id="textModeHint"></small><div class="source-font-info"><small id="sourceFontInfo"></small><button type="button" id="matchSourceFont" hidden>匹配本机原字体</button></div><div class="text-metrics"><label>行高 (pt)<input id="textLeading" type="number" min="0.1" max="2000" step="any" placeholder="自动"></label><label>字间距 (pt)<input id="textTracking" type="number" min="-100" max="1000" step="any"></label><label>框宽 (mm)<input id="textFrameWidth" type="number" min=".1" max="5000" step="any"></label><label>框高 (mm)<input id="textFrameHeight" type="number" min=".1" max="5000" step="any" placeholder="自动"></label></div><small id="textOverflow" role="status"></small>';
+  panel.innerHTML='<div class="text-modes"><button type="button" data-text-mode="layer">文字图层</button><button type="button" data-text-mode="frame">文本框</button></div><small id="textModeHint"></small><div class="paragraph-align" role="group" aria-label="段落对齐"><button type="button" data-paragraph-align="left">左对齐</button><button type="button" data-paragraph-align="center">居中</button><button type="button" data-paragraph-align="right">右对齐</button></div><div class="source-font-info"><small id="sourceFontInfo"></small><button type="button" id="matchSourceFont" hidden>匹配本机原字体</button></div><div class="text-metrics"><label>行高 (pt)<input id="textLeading" type="number" min="0.1" max="2000" step="any" placeholder="自动"></label><label>字间距 (pt)<input id="textTracking" type="number" min="-100" max="1000" step="any"></label><label>框宽 (mm)<input id="textFrameWidth" type="number" min=".1" max="5000" step="any"></label><label>框高 (mm)<input id="textFrameHeight" type="number" min=".1" max="5000" step="any" placeholder="自动"></label></div><small id="textOverflow" role="status"></small>';
   $('typeBox').append(panel);
   const overlay=document.createElementNS(ns,'svg');overlay.id='paragraphFrame';overlay.setAttribute('aria-hidden','true');$('paper').append(overlay);
   const outline=document.createElementNS(ns,'polygon');outline.setAttribute('vector-effect','non-scaling-stroke');overlay.append(outline);
@@ -33,6 +33,7 @@
     const f=o.paragraph,b=localFrame(o);
     $('sourceFontInfo').textContent=VectorFonts.status(o);
     $('matchSourceFont').hidden=!o.font||/^(serif|sans-serif|monospace)$/.test(o.font)||!!VectorFonts.localMatch(o.font);
+    for(const button of panel.querySelectorAll('[data-paragraph-align]'))button.setAttribute('aria-pressed',String(button.dataset.paragraphAlign===(f.align||'left')));
     for(const button of panel.querySelectorAll('[data-text-mode]'))button.setAttribute('aria-pressed',String(button.dataset.textMode===mode));
     $('textModeHint').textContent=mode==='frame'?'拖动绿色边点调整排版范围，保持字号。':'双击文字直接输入。拖动蓝色角点缩放，Shift 等比缩放。';
     setField('textLeading',f.advance?f.advance*b.sy/ptMM:null);$('textLeading').placeholder='自动 · '+Number((f.leading*o.pt).toFixed(2));
@@ -45,9 +46,9 @@
     for(const [edge,x,y] of [['left',0,.5],['right',1,.5],['top',.5,0],['bottom',.5,1]]){const p=map(x,y),h=handles[edge];h.setAttribute('cx',p.x);h.setAttribute('cy',p.y);h.setAttribute('r',4.5/px);}
   }
   function schedule(){if(!tick)tick=requestAnimationFrame(update);}
-  function settings(f){return {width:f.width,height:f.height||0,x:f.x,y:f.y,leading:f.leading,advance:f.advance||0,spacing:f.spacing||0};}
+  function settings(f){return {align:f.align||'left',width:f.width,height:f.height||0,x:f.x,y:f.y,leading:f.leading,advance:f.advance||0,spacing:f.spacing||0};}
   function set(o,frame,key){changeLocally([{kind:'paragraph',id:o.id,frame}],key);schedule();}
-  panel.addEventListener('click',e=>{const v=e.target.dataset.textMode;if(v){mode=v;update();}});
+  panel.addEventListener('click',e=>{const align=e.target.dataset.paragraphAlign;if(align&&chosen()?.paragraph){set(chosen(),{...settings(chosen().paragraph),align},'');return;}const v=e.target.dataset.textMode;if(v){mode=v;update();}});
   panel.addEventListener('input',e=>{const el=e.target,o=chosen();if(el.tagName!=='INPUT'||!o?.paragraph||el.validity.badInput||!el.validity.valid)return;
     const n=el.value===''?null:el.valueAsNumber,b=localFrame(o),f=settings(o.paragraph);
     switch(el.id){case 'textLeading':f.advance=n===null?0:n*ptMM/b.sy;break;case 'textTracking':f.spacing=(n||0)*ptMM/b.sx;break;

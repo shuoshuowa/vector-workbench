@@ -51,6 +51,13 @@ const VectorParagraphs = (() => {
         el.dataset.paragraphWidth=String(Math.max(.01,block.right-block.left));
         el.dataset.paragraphX=String(block.left);el.dataset.paragraphY=String(base.y);
         el.dataset.leading=String(gaps.length?gaps[Math.floor(gaps.length/2)]/base.size:1.2);
+        if(block.lines.length>1){
+          const spread=values=>Math.max(...values)-Math.min(...values),lines=block.lines,tolerance=.28*base.size;
+          if(spread(lines.map(l=>l.x))>2*tolerance){
+            if(spread(lines.map(l=>l.end))<=tolerance)el.dataset.textAlign='right';
+            else if(spread(lines.map(l=>(l.x+l.end)/2))<=tolerance)el.dataset.textAlign='center';
+          }
+        }
         el.dataset.text=logicalText(block.lines);
         if(base.span.dataset.originalFont){el.dataset.originalFont=base.span.dataset.originalFont;el.dataset.editFamily=base.span.dataset.editFamily;}
       }
@@ -58,20 +65,23 @@ const VectorParagraphs = (() => {
     }
     return changed;
   }
+  function alignment(value){return ['center','middle','justify-center'].includes(value)?'center':['right','end','justify-right'].includes(value)?'right':'left';}
+  const anchor=align=>({left:'start',center:'middle',right:'end'})[alignment(align)];
+  const fraction=align=>({left:0,center:.5,right:1})[alignment(align)];
   function info(el){
     const width=Number(el.dataset.paragraphWidth);
     if(!(width>0&&Number.isFinite(width)))return null;
-    return {width,x:Number(el.dataset.paragraphX)||0,y:Number(el.dataset.paragraphY)||0,leading:Number(el.dataset.leading)||1.2,height:Number(el.dataset.paragraphHeight)||0,advance:Number(el.dataset.lineAdvance)||0,spacing:Number(el.dataset.tracking)||0};
+    return {width,align:alignment(el.dataset.textAlign),x:Number(el.dataset.paragraphX)||0,y:Number(el.dataset.paragraphY)||0,leading:Number(el.dataset.leading)||1.2,height:Number(el.dataset.paragraphHeight)||0,advance:Number(el.dataset.lineAdvance)||0,spacing:Number(el.dataset.tracking)||0};
   }
   // The native canvas input and SVG exporter share the browser's line-breaking rules.
   const mirror=document.createElement('div'),metricsText=document.createTextNode(''),marker=document.createElement('span');
   mirror.style.cssText='position:fixed;left:-100000px;top:0;visibility:hidden;pointer-events:none;box-sizing:content-box;margin:0;border:0;padding:0';
   marker.style.cssText='display:inline-block;width:0;height:0;vertical-align:baseline';
   mirror.append(metricsText);document.body.append(mirror);
-  function typography(width,size,family,weight,style,spacing,advance){
+  function typography(width,size,family,weight,style,spacing,advance,align='left'){
     return {width:width*100/size+'px',fontFamily:family,fontWeight:weight||'400',fontStyle:style||'normal',fontSize:'100px',
       letterSpacing:(spacing||0)*100/size+'px',lineHeight:advance*100/size+'px',whiteSpace:'pre-wrap',overflowWrap:'anywhere',
-      wordBreak:'normal',lineBreak:'auto',textAlign:'left',textIndent:'0',tabSize:'8',direction:'ltr'};
+      wordBreak:'normal',lineBreak:'auto',textAlign:alignment(align),textIndent:'0',tabSize:'8',direction:'ltr'};
   }
   let previousKey='',previousLines=[],baselineKey='',baselineOffset=0;
   function baseline(styles){
@@ -110,17 +120,20 @@ const VectorParagraphs = (() => {
     el.dataset.overflow=String(all.length-lines.length);
     el.replaceChildren(...lines.map((line,i)=>{
       const span=el.ownerDocument.createElementNS('http://www.w3.org/2000/svg','tspan');
-      span.setAttribute('x',frame.x);span.setAttribute('y',frame.y+i*advance);span.dataset.line='1';span.textContent=line;return span;
+      span.setAttribute('x',frame.x+frame.width*fraction(frame.align));span.setAttribute('text-anchor',anchor(frame.align));span.setAttribute('y',frame.y+i*advance);span.dataset.line='1';span.textContent=line;return span;
     }));
     return lines.length;
   }
   function store(el,p){
     for(const [key,value] of Object.entries({paragraphWidth:p.width,paragraphX:p.x,paragraphY:p.y,leading:p.leading,paragraphHeight:p.height||0,lineAdvance:p.advance||0,tracking:p.spacing||0}))el.dataset[key]=String(value);
+    el.dataset.textAlign=alignment(p.align);
   }
   function inferred(el){
     const b=el.getBBox(),span=el.querySelector('tspan')||el,size=parseFloat(getComputedStyle(span).fontSize)||12;
     const first=el.getNumberOfChars()?el.getStartPositionOfChar(0):{x:b.x,y:b.y+size*.8};
-    return {x:first.x,y:first.y,width:Math.max(b.width,size),height:0,advance:0,spacing:parseFloat(getComputedStyle(span).letterSpacing)||0,leading:1.2};
+    const align=alignment(getComputedStyle(span).textAnchor),width=Math.max(b.width,size),explicit=span.x?.baseVal?.numberOfItems?span.x.baseVal:el.x?.baseVal;
+    const x=align!=='left'&&explicit?.numberOfItems?explicit.getItem(0).value-width*fraction(align):first.x;
+    return {x,y:first.y,width,align,height:0,advance:0,spacing:parseFloat(getComputedStyle(span).letterSpacing)||0,leading:1.2};
   }
   const svgNS='http://www.w3.org/2000/svg',pt=25.4/72;
   const probeSvg=document.createElementNS(svgNS,'svg'),probe=document.createElementNS(svgNS,'text');
@@ -142,5 +155,5 @@ const VectorParagraphs = (() => {
     const n=new DOMMatrix().translate(to.x,to.y).scale(sx,sy).translate(-from.x,-from.y).multiply(m);
     o.pt*=Math.hypot(n.c,n.d)/(Math.hypot(m.c,m.d)||1);p.matrix=[n.a,n.b,n.c,n.d,n.e,n.f];
   }
-  return {prepare,info,render,typography,baseline,splitLines,store,inferred,fontSize,paint,update,previewMatrix,geometry};
+  return {alignment,anchor,fraction,prepare,info,render,typography,baseline,splitLines,store,inferred,fontSize,paint,update,previewMatrix,geometry};
 })();
