@@ -1,7 +1,13 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-function board(w,h,unit='mm'){return {dataset:{boardUnit:unit},viewBox:{baseVal:{width:w,height:h}},setAttribute(k,v){if(k==='viewBox'){const [, ,width,height]=v.split(' ').map(Number);this.viewBox.baseVal={width,height};}}};}
+function board(w,h,unit='mm'){return {dataset:{boardUnit:unit},getAttribute(k){return k==='viewBox'?this.bounds:null;},bounds:'0 0 '+w+' '+h,viewBox:{baseVal:{width:w,height:h}},setAttribute(k,v){if(k==='viewBox'){this.bounds=v;const [, ,width,height]=v.split(' ').map(Number);this.viewBox.baseVal={width,height};}}};}
 const model=vm.runInNewContext(fs.readFileSync(path.join(__dirname,'..','artboard-model.js'),'utf8')+'\nArtboards',{VectorModel:{board,clone:p=>Object.assign(board(p.viewBox.baseVal.width,p.viewBox.baseVal.height,p.dataset.boardUnit),{dataset:{...p.dataset}})}});
 test('legacy pages get a non-overlapping layout and retain their units',()=>{const pages=[board(80,35),board(40,70,'px'),board(60,50)];model.initialize(pages);const [first,second,third]=model.list(pages);assert.equal(first.name,'画板 1');assert(second.x>=first.x+first.w);assert(third.y>=second.y+second.h);assert.equal(second.unit,'px');});
 test('moving a board and changing its export order are independent',()=>{const pages=[board(20,30),board(10,15)];model.modify(pages,0,{op:'change',name:'封面',x:-32,y:18});const p=pages[0];model.modify(pages,0,{op:'order',to:1});assert.equal(pages[1],p);assert.equal(model.list(pages)[1].x,-32);const index=model.modify(pages,1,{op:'duplicate',x:12,y:15});assert.equal(index,2);assert.equal(model.list(pages)[2].name,'封面 副本');assert.equal(model.list(pages)[2].w,20);assert.equal(model.list(pages)[1].x,-32);});
 test('reject invalid sizes and keep the final board',()=>{const pages=[board(60,40)];assert.throws(()=>model.modify(pages,0,{op:'add',w:0,h:60}));assert.throws(()=>model.modify(pages,0,{op:'delete'}));assert.equal(pages.length,1);});
+
+test('read the serialized page size without float32 drift',()=>{
+  const mm=800*(25.4/96),p=board(mm,12.3456789);
+  p.viewBox.baseVal={width:Math.fround(mm),height:Math.fround(12.3456789)};
+  const [info]=model.list([p]);assert.equal(info.w,mm);assert.equal(info.h,12.3456789);
+});

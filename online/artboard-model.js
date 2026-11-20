@@ -1,7 +1,15 @@
 /* World coordinates are millimetres, positive downwards; artwork stays page-local. */
 const Artboards=(()=>{
   const gap=14;
-  function size(p){const r=p.viewBox.baseVal;return {w:r.width,h:r.height};}
+  function viewBox(p){
+    // SVGRect exposes float32 values. Read the authored numbers for document dimensions.
+    const values=(p.getAttribute('viewBox')||'').trim().split(/[\s,]+/).map(Number);
+    if(values.length===4&&values.every(Number.isFinite)){
+      const [x,y,width,height]=values;return {x,y,width,height};
+    }
+    return p.viewBox.baseVal;
+  }
+  function size(p){const r=viewBox(p);return {w:r.width,h:r.height};}
   function set(p,{x,y,name}){p.dataset.boardX=String(x);p.dataset.boardY=String(y);p.dataset.boardName=name;}
   function arrange(pages){const cols=Math.max(1,Math.ceil(Math.sqrt(pages.length))),positions=[];let x=0,y=0,h=0;
     pages.forEach((p,i)=>{if(i&&i%cols===0){x=0;y+=h+gap;h=0;}const s=size(p);positions.push({x,y});x+=s.w+gap;h=Math.max(h,s.h);});return positions;
@@ -36,5 +44,5 @@ const Artboards=(()=>{
     }
     set(p,{x,y,name});return i;
   }
-  return {list,set,initialize,modify};
+  return {viewBox,list,set,initialize,modify};
 })();

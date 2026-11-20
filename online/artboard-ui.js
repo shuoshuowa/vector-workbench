@@ -21,12 +21,12 @@
     if(working||!allowLeave()){unitPicker.value=currentBoardUnit();return;}
     const board=active&&items[index],draft=board?['X','Y','W','H'].map(k=>{
       const field=$('art'+k),factor=boardUnitFactor(board.unit,board.ppi);
-      return field.value!==String(+(board[k.toLowerCase()]/factor).toFixed(4))?{field,mm:field.valueAsNumber*factor}:null;
+      return field.value!==String(formatBoardMeasurement(board[k.toLowerCase()],factor))?{field,mm:field.valueAsNumber*factor}:null;
     }).filter(Boolean):[],name=board?$('artName').value:null;
     await run('正在切换画板单位…',async()=>{
       if(layoutSteps.length)await commitLayout();
       await api('boardUnit',{unit});saveBoardPreference('vq-board-unit',unit);
-      if(board){sync(true);$('artName').value=name;for(const {field,mm} of draft)field.value=Number.isFinite(mm)?+(mm/boardUnitFactor(unit,board.ppi)).toFixed(4):'';}
+      if(board){sync(true);$('artName').value=name;for(const {field,mm} of draft)field.value=Number.isFinite(mm)?formatBoardMeasurement(mm,boardUnitFactor(unit,board.ppi)):'';}
     },'inline');
     unitPicker.value=currentBoardUnit();
   };
@@ -47,7 +47,7 @@
   function controls(){
     const b=items[index];if(!b)return;
     for(const panel of [host,inspector])for(const btn of panel.querySelectorAll('[data-board]'))btn.disabled=btn.dataset.board==='delete'&&items.length<2||btn.dataset.board==='earlier'&&!index||btn.dataset.board==='later'&&index===items.length-1;
-    $('artName').value=b.name;for(const k of ['x','y','w','h'])$('art'+k.toUpperCase()).value=+(b[k]/boardUnitFactor(b.unit,b.ppi)).toFixed(4);for(const s of inspector.querySelectorAll('[data-ab-unit]'))s.textContent=b.unit;
+    $('artName').value=b.name;for(const k of ['x','y','w','h'])$('art'+k.toUpperCase()).value=formatBoardMeasurement(b[k],boardUnitFactor(b.unit,b.ppi));for(const s of inspector.querySelectorAll('[data-ab-unit]'))s.textContent=b.unit;
     for(const row of boardList.querySelectorAll('[data-ab-row]'))row.setAttribute('aria-pressed',String(+row.dataset.abRow===index));
     for(const el of plane.querySelectorAll('.board-tile'))el.classList.toggle('active',+el.dataset.index===index);
   }
@@ -75,7 +75,7 @@
     if(cmd==='earlier'||cmd==='later')mutate({op:'order',to:index+(cmd==='earlier'?-1:1)});
     else if(cmd==='arrange')mutate({op:'arrange'}).then(fit);else mutate({op:cmd==='copy'?'duplicate':'delete'});}
   for(const h of [host,inspector])h.addEventListener('click',e=>{const k=e.target.closest('[data-board]')?.dataset.board;if(k)command(k);});
-  inspector.querySelector('form').onsubmit=e=>{e.preventDefault();const unit=boardUnitFactor(items[index].unit,items[index].ppi),a={op:'change',name:$('artName').value};for(const k of ['x','y','w','h']){const v=$('art'+k.toUpperCase()).valueAsNumber;if(v!==+(items[index][k]/unit).toFixed(4))a[k]=v*unit;}mutate(a);};
+  inspector.querySelector('form').onsubmit=e=>{e.preventDefault();const unit=boardUnitFactor(items[index].unit,items[index].ppi),a={op:'change',name:$('artName').value};for(const k of ['x','y','w','h']){const v=$('art'+k.toUpperCase()).valueAsNumber;if(v!==formatBoardMeasurement(items[index][k],unit))a[k]=v*unit;}mutate(a);};
   function point(e){const r=field.getBoundingClientRect();return {x:(e.clientX-r.x-offset.x)/scale,y:(e.clientY-r.y-offset.y)/scale};}
   field.onwheel=e=>{e.preventDefault();if(drag)return;const p=point(e),old=scale;scale=Math.max(.001,Math.min(40,old*Math.exp(-e.deltaY*.002)));offset.x+=p.x*(old-scale);offset.y+=p.y*(old-scale);placement();};
   field.addEventListener('wheel',e=>e.preventDefault(),{passive:false});

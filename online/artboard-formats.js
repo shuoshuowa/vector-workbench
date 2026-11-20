@@ -29,7 +29,7 @@ const ArtboardFormats=(()=>{
     }catch(e){if(e!==finished)throw e;}
     if(!found)return;const layout=nativeLayout(tail);
     if(layout.length!==pages.length)return;
-    const plans=layout.map((b,i)=>{const p=pages[i],vb=p.viewBox.baseVal;
+    const plans=layout.map((b,i)=>{const p=pages[i],vb=Artboards.viewBox(p);
       if(Math.abs(vb.width-b.w)<.25&&Math.abs(vb.height-b.h)<.25)return {b,p};
       const src=pdf.getPage(i),crop=src.getCropBox(),trim=src.getTrimBox();
       if(src.getRotation().angle%360||Math.abs(trim.width*PT-b.w)>.25||Math.abs(trim.height*PT-b.h)>.25)return null;

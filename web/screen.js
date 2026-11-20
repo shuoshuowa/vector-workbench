@@ -38,6 +38,18 @@ function validBoardUnit(unit){return Object.hasOwn(boardUnits,unit);}
 function preferredBoardUnit(){const unit=boardPreference('vq-board-unit','mm');return validBoardUnit(unit)?unit:'mm';}
 function currentBoardUnit(){const unit=doc()?.unit;return validBoardUnit(unit)?unit:preferredBoardUnit();}
 function boardUnitFactor(unit,ppi){return unit==='px'&&ppi>0?25.4/ppi:boardUnits[unit];}
+function formatBoardMeasurement(mm,factor){
+  const value=mm/factor;
+  // Older projects may have saved the SVG DOM's float32 copy of a dimension.
+  // Only simplify its display when that candidate reproduces the identical float.
+  if(mm===Math.fround(mm)){
+    for(let digits=0;digits<=3;digits++){
+      const candidate=Number(value.toFixed(digits));
+      if(Math.fround(candidate*factor)===mm)return candidate;
+    }
+  }
+  return Number(value.toFixed(7));
+}
 function boardDimensionsLabel(d){const unit=currentBoardUnit(),factor=boardUnitFactor(unit,d.ppi);return num(d.width/factor)+' × '+num(d.height/factor)+' '+unit;}
 function panel(which=''){
   const old=document.body.dataset.panel,narrow=small(),next=narrow?which:'';
@@ -961,7 +973,7 @@ function showBoardMeasurements(){
   const unit=$('boardUnit').value,factor=boardUnitFactor(unit,boardMode==='size'?doc()?.ppi:96),minimum=typeof VectorBrowser==='undefined'?5:.01;
   for(const [i,input] of boardFields.entries()){
     input.min=Math.floor(minimum/factor*1e7)/1e7;input.max=Math.ceil(2000/factor*1e7)/1e7;
-    input.value=Number.isFinite(dialogMM[i])?Number((dialogMM[i]/factor).toFixed(7)):'';
+    input.value=Number.isFinite(dialogMM[i])?formatBoardMeasurement(dialogMM[i],factor):'';
   }
   const hints=[];
   if(unit==='px')hints.push('1 英寸 = '+(boardMode==='size'?doc()?.ppi||96:96)+' 像素');

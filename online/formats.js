@@ -42,7 +42,7 @@ function svgPage(s,project=false){
   }
   if(embeddedFonts.length){const style=M.make('style');style.textContent=embeddedFonts.join('\n');page.prepend(style);}
   if(project){if(!(page.viewBox.baseVal.width>0&&page.viewBox.baseVal.height>0))throw Error('内嵌画板尺寸无效。');return page;}
-  const vb=page.viewBox.baseVal;
+  const vb=Artboards.viewBox(page);
   const mm=(value,def)=>{const m=/^([\d.+-]+)(mm|cm|in|pt|px)?$/.exec(value||'');return m?Number(m[1])*({mm:1,cm:10,in:25.4,pt:PT,px:25.4/96}[m[2]||'px']):def;};
   const w=mm(page.getAttribute('width'),vb.width*25.4/96||210),h=mm(page.getAttribute('height'),vb.height*25.4/96||297);
   if(!(w>0&&h>0))throw Error('SVG 画板尺寸无效。');
@@ -114,7 +114,7 @@ async function pdfOut(pages,withProject=true,kitMarkers){
   doc.registerFont('VQDefault',font);
   if(withProject)doc._root.data.PageLabels={Nums:Artboards.list(pages).flatMap((b,i)=>[i,{P:new String(b.name)}])};
   const pieces=[],done=new Promise((ok,no)=>{doc.on('data',p=>pieces.push(p));doc.on('end',()=>ok(new Blob(pieces,{type:'application/pdf'})));doc.on('error',no);});
-  for(const root of pages){const vb=root.viewBox.baseVal,w=vb.width/PT,h=vb.height/PT;doc.addPage({size:[w,h],margin:0});
+  for(const root of pages){const vb=Artboards.viewBox(root),w=vb.width/PT,h=vb.height/PT;doc.addPage({size:[w,h],margin:0});
     VectorEffects.refresh(root);VectorStroke.refresh(root);const copy=root.cloneNode(true);await VectorEffects.pdf(root,copy,canvasOf,kitMarkers?.get(root));copy.setAttribute('width',w);copy.setAttribute('height',h);copy.setAttribute('overflow','visible');
     const registered=new Set(),styles=new Map();
     for(const css of copy.querySelectorAll('style')){for(const m of css.textContent.matchAll(/font-family:\s*["']?([\w-]+)["']?;?\s*src:\s*url\(["']?data:[^,]+,([a-zA-Z0-9+/=]+)/g)){try{const u=Uint8Array.from(atob(m[2]),c=>c.charCodeAt(0));doc.registerFont(m[1],u.buffer);doc.font(m[1]);registered.add(m[1]);}catch{}}}
@@ -126,7 +126,7 @@ async function pdfOut(pages,withProject=true,kitMarkers){
   }if(withProject){const sourceBytes=new TextEncoder().encode(JSON.stringify({version:1,pdfTextVersion:2,pages:pages.map(M.xml)}));doc.file(sourceBytes.buffer,{name:'vector-workbench.json',type:'application/json',description:'可编辑画板'});}doc.end();return done;
 }
 async function canvasOf(page,w,h){const url=URL.createObjectURL(new Blob([M.xml(page)],{type:'image/svg+xml'}));try{const img=await image(url),canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;canvas.getContext('2d').drawImage(img,0,0,w,h);return canvas;}finally{URL.revokeObjectURL(url);}}
-async function psdLayers(page,ppi){await lib('psd');M.mount(page);const vb=page.viewBox.baseVal,scale=ppi/25.4,w=Math.max(1,Math.round(vb.width*scale)),h=Math.max(1,Math.round(vb.height*scale));
+async function psdLayers(page,ppi){await lib('psd');M.mount(page);const vb=Artboards.viewBox(page),scale=ppi/25.4,w=Math.max(1,Math.round(vb.width*scale)),h=Math.max(1,Math.round(vb.height*scale));
   if(w*h>60e6||w>30000||h>30000)throw Error('该画板超出浏览器 PSD 导出的尺寸范围。');
   const children=[],items=M.drawables(page).filter(e=>!e.parentElement.closest('[data-vq]'));
   for(const e of items){const work=page.cloneNode(true);for(const n of M.drawables(work))if(n.dataset.vq!==e.dataset.vq&&!n.closest('[data-vq="'+e.dataset.vq+'"]')&&!n.querySelector('[data-vq="'+e.dataset.vq+'"]'))n.remove();
@@ -181,6 +181,6 @@ async function preservedPdf(pages,original,forceNew=false,kitMarkers){
   await target.attach(new TextEncoder().encode(JSON.stringify({version:1,pdfTextVersion:2,pages:pages.map(M.xml)})),'vector-workbench.json',{mimeType:'application/json',description:'Editable vector workbench pages'});
   return new Blob([await target.save()],{type:'application/pdf'});
 }
-async function output(pages,idx,fmt,original){if(fmt==='svg'){const svg=pages[idx].cloneNode(true),unit=validBoardUnit(svg.dataset.boardUnit)?svg.dataset.boardUnit:'mm';for(const key of ['width','height'])svg.setAttribute(key,Number((pages[idx].viewBox.baseVal[key]/boardUnits[unit]).toFixed(4))+unit);return new Blob([M.xml(svg)],{type:'image/svg+xml'});}if(fmt==='psd')return psdOut([pages[idx]],false);if(fmt==='psd-all')return psdOut(pages,true);if(fmt==='ai-kit')return ArtboardFormats.kit(pages,marks=>preservedPdf(pages,original,true,marks),lib);if(fmt==='eps')return new Blob([await postscript(await(await pdfOut([pages[idx]])).arrayBuffer(),'eps')],{type:'application/postscript'});if(fmt==='pdf')return preservedPdf(pages,original);throw Error('请选择有效的导出格式。');}
+async function output(pages,idx,fmt,original){if(fmt==='svg'){const svg=pages[idx].cloneNode(true),unit=validBoardUnit(svg.dataset.boardUnit)?svg.dataset.boardUnit:'mm';const bounds=Artboards.viewBox(pages[idx]);for(const key of ['width','height'])svg.setAttribute(key,Number((bounds[key]/boardUnits[unit]).toFixed(10))+unit);return new Blob([M.xml(svg)],{type:'image/svg+xml'});}if(fmt==='psd')return psdOut([pages[idx]],false);if(fmt==='psd-all')return psdOut(pages,true);if(fmt==='ai-kit')return ArtboardFormats.kit(pages,marks=>preservedPdf(pages,original,true,marks),lib);if(fmt==='eps')return new Blob([await postscript(await(await pdfOut([pages[idx]])).arrayBuffer(),'eps')],{type:'application/postscript'});if(fmt==='pdf')return preservedPdf(pages,original);throw Error('请选择有效的导出格式。');}
 window.VectorFormats={open,output,canvasOf,loadLibrary:lib,fonts,image,dataURL,loadFontReader:()=>lib('fontkit')};
 })();

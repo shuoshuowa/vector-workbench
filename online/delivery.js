@@ -44,7 +44,7 @@ const VectorDelivery=(()=>{
     const pages=j.pages.map(s=>parse(s,true));M.resumeSerial(pages);for(const page of pages){await VectorFonts.hydrate(page);VectorParagraphs.prepare(page);}
     pages.active=Number.isInteger(j.active)&&j.active>=0&&j.active<pages.length?j.active:0;return pages;
   }
-  function dimensions(page,factor){const vb=page.viewBox.baseVal,ppi=+page.dataset.psdResolution||96;return [vb.width,vb.height].map(n=>Math.max(1,Math.round(n*ppi/25.4*factor)));}
+  function dimensions(page,factor){const vb=Artboards.viewBox(page),ppi=+page.dataset.psdResolution||96;return [vb.width,vb.height].map(n=>Math.max(1,Math.round(n*ppi/25.4*factor)));}
   async function raster(page,fmt,factor,canvasOf){
     const [w,h]=dimensions(page,factor);if(w*h>64e6||Math.max(w,h)>32767)throw Error('导出图片尺寸超出浏览器容量，请降低倍率。');
     VectorEffects.refresh(page);VectorStroke.refresh(page);const c=await canvasOf(page,w,h),ctx=c.getContext('2d');
