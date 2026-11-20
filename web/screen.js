@@ -33,7 +33,7 @@ const small=()=>matchMedia('(max-width:900px)').matches;
 const num=n=>Number(n.toFixed(2));
 const boardUnits=Object.freeze({mm:1,cm:10,in:25.4,pt:25.4/72,px:25.4/96});
 function boardPreference(key,fallback){try{return localStorage.getItem(key)??fallback;}catch{return fallback;}}
-function saveBoardPreference(key,value){try{localStorage.setItem(key,value);}catch{}}
+function saveBoardPreference(key,value){try{localStorage.setItem(key,value);return true;}catch{return false;}}
 function validBoardUnit(unit){return Object.hasOwn(boardUnits,unit);}
 function preferredBoardUnit(){const unit=boardPreference('vq-board-unit','mm');return validBoardUnit(unit)?unit:'mm';}
 function currentBoardUnit(){const unit=doc()?.unit;return validBoardUnit(unit)?unit:preferredBoardUnit();}
@@ -947,7 +947,16 @@ function drawShapePreview(d,e){
 }
 function startShape(shape){photoTarget=null;setTool('shape:'+shape);panel();list();toolHint();}
 const boardFields=[$('blankW'),$('blankH')];
-let dialogMM=[210,297];
+const blankPresetKey='vq-new-board-preset';
+function newBoardPreset(){
+  const min=typeof VectorBrowser==='undefined'?5:.01;
+  try{
+    const saved=JSON.parse(boardPreference(blankPresetKey,'null'));
+    if(saved&&validBoardUnit(saved.unit)&&[saved.w,saved.h].every(n=>Number.isFinite(n)&&n>=min&&n<=2000))return saved;
+  }catch{}
+  return {unit:'px',w:1000*boardUnits.px,h:1000*boardUnits.px};
+}
+let dialogMM=[];
 function showBoardMeasurements(){
   const unit=$('boardUnit').value,factor=boardUnitFactor(unit,boardMode==='size'?doc()?.ppi:96),minimum=typeof VectorBrowser==='undefined'?5:.01;
   for(const [i,input] of boardFields.entries()){
@@ -963,7 +972,9 @@ boardFields.forEach((input,i)=>input.addEventListener('input',()=>{dialogMM[i]=i
 $('boardUnit').onchange=showBoardMeasurements;
 function boardDialog(mode){
   boardMode=mode;const resize=mode==='size';$('boardDialogTitle').textContent=resize?'调整当前画板尺寸':'新建空白文稿';
-  dialogMM=resize?[doc().width,doc().height]:[210,297];$('boardUnit').value=resize?currentBoardUnit():preferredBoardUnit();showBoardMeasurements();
+  const preset=resize?{w:doc().width,h:doc().height,unit:currentBoardUnit()}:newBoardPreset();
+  dialogMM=[preset.w,preset.h];$('boardUnit').value=preset.unit;showBoardMeasurements();
+  $('defaultSizeOption').hidden=resize;$('saveDefaultSize').checked=false;
   $('boardSubmit').textContent=resize?'应用尺寸':'创建画板';$('blankDialog').showModal();
 }
 $('blank').onclick=()=>{queuedShape=null;boardDialog('blank');};
@@ -971,8 +982,17 @@ $('pageSize').onclick=()=>{if(allowLeave())boardDialog('size');};
 $('blankCancel').onclick=()=>$('blankDialog').close();
 $('blankForm').onsubmit=e=>{e.preventDefault();const [w,h]=dialogMM,unit=$('boardUnit').value;if(!Number.isFinite(w)||!Number.isFinite(h)||!$('blankForm').reportValidity())return;
   if(boardMode==='size'){saveBoardPreference('vq-board-unit',unit);$('blankDialog').close();act('pageSize',{w,h,unit});return;}
-  if(!canReplace())return;saveBoardPreference('vq-board-unit',unit);const shape=queuedShape;queuedShape=null;$('blankDialog').close();
-  run('正在创建空白画板…',async()=>{await api('blank',{w,h,unit});if(shape)startShape(shape);});};
+  if(!canReplace())return;
+  const saveDefault=$('saveDefaultSize').checked,shape=queuedShape;
+  queuedShape=null;$('blankDialog').close();
+  run('正在创建空白画板…',async()=>{
+    await api('blank',{w,h,unit});
+    if(shape)startShape(shape);
+    if(saveDefault){
+      const saved=saveBoardPreference(blankPresetKey,JSON.stringify({w,h,unit}));
+      $('message').textContent=saved?'已保存默认画板尺寸':'画板已创建，当前环境无法保存默认尺寸。';
+    }
+  });};
 $('shapeMenu').onclick=()=>menu($('shapeOptions').hidden);
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('.create-strip'))menu(false);});
 $('shapeOptions').onclick=e=>{const shape=e.target.closest('[data-shape]')?.dataset.shape;if(!shape)return;menu(false);if(!doc()){queuedShape=shape;boardDialog('blank');}else if(allowLeave())startShape(shape);};

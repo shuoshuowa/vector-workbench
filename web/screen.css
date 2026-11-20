@@ -43,3 +43,5 @@ main{display:grid;grid-template-columns:222px minmax(0,1fr) 266px;height:calc(10
 @media(max-width:610px){#rulerToggle{padding:4px;font-size:11px}}
 @media(max-width:440px){.export-tools select{max-width:56px}.appbar .top-actions{min-width:0}}
 @media(max-width:440px){.studio{min-width:0}.workbar #external{font-size:0}.workbar #external::after{content:"插入";font-size:12px}.workbar #shapeMenu{font-size:0}.workbar #shapeMenu::after{content:"图形 ▾";font-size:12px}}
+
+#defaultSizeOption:not([hidden]){display:flex;align-items:center;gap:7px;margin:10px 0;font-size:13px;cursor:pointer}#defaultSizeOption input{width:auto;margin:0}
