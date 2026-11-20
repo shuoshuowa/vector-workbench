@@ -1,6 +1,15 @@
 /* Native SVG appearance; display and export use the same stops and shadow geometry. */
 const VectorEffects=(()=>{
   const M=VectorModel,states=new WeakMap(),modes={normal:'Normal',multiply:'Multiply',screen:'Screen',overlay:'Overlay',darken:'Darken',lighten:'Lighten',difference:'Difference'};
+  // Photoshop stores the light direction; SVG offsets point away from the light.
+  function shadowAngle(s){
+    if(Number.isFinite(s.angle))return s.angle;
+    return s.x||s.y?Math.atan2(s.y,-s.x)*180/Math.PI:135;
+  }
+  function shadowOffset(angle,distance){
+    const r=angle*Math.PI/180;
+    return {angle,x:Math.abs(Math.cos(r))<1e-12?0:-Math.cos(r)*distance,y:Math.abs(Math.sin(r))<1e-12?0:Math.sin(r)*distance};
+  }
   function read(el){try{return el.dataset.vqFx?JSON.parse(el.dataset.vqFx):null;}catch{return null;}}
   function scale(el){const root=el.ownerSVGElement?.closest('svg');if(!root?.getScreenCTM()||!el.getScreenCTM())return {x:1,y:1};
     const m=root.getScreenCTM().inverse().multiply(el.getScreenCTM());return {x:Math.hypot(m.a,m.b)||1,y:Math.hypot(m.c,m.d)||1};}
@@ -61,7 +70,7 @@ const VectorEffects=(()=>{
     if(g){for(const t of [n,...n.querySelectorAll('tspan')])t.style.fill=e.dataset.solidFill||'#000000';
       effects.gradientOverlay=[{enabled:true,present:true,blendMode:'normal',opacity:1,align:true,reverse:false,dither:false,offset:{x:0,y:0},type:g.kind,angle:-g.angle,scale:1,
         gradient:{name:'Gradient',type:'solid',smoothness:1,colorStops:[g.from,g.to].map((v,i)=>({color:rgb(v),location:i,midpoint:.5})),opacityStops:[0,1].map(location=>({opacity:1,location,midpoint:.5}))}}];}
-    if(s)effects.dropShadow=[{enabled:true,present:true,blendMode:'multiply',color:rgb(s.color),opacity:s.alpha,useGlobalLight:false,angle:Math.atan2(s.y,-s.x)*180/Math.PI,distance:{units:'Pixels',value:Math.hypot(s.x,s.y)*k},size:{units:'Pixels',value:s.blur*k},choke:{units:'Pixels',value:0},noise:0,antialiased:false,layerConceals:true,contour:{name:'Linear',curve:[{x:0,y:0},{x:255,y:255}]}}];
+    if(s)effects.dropShadow=[{enabled:true,present:true,blendMode:'multiply',color:rgb(s.color),opacity:s.alpha,useGlobalLight:false,angle:shadowAngle(s),distance:{units:'Pixels',value:Math.hypot(s.x,s.y)*k},size:{units:'Pixels',value:s.blur*k},choke:{units:'Pixels',value:0},noise:0,antialiased:false,layerConceals:true,contour:{name:'Linear',curve:[{x:0,y:0},{x:255,y:255}]}}];
     if(g||s||stroke)layer.effects=effects;return layer;
   }
   function fromPsd(l,mm){
@@ -69,7 +78,7 @@ const VectorEffects=(()=>{
     if(l.blendMode&&l.blendMode!=='normal'&&modes[l.blendMode])f.blend=l.blendMode;
     if(l.opacity!=null&&l.opacity!==1)f.opacity=l.opacity;
     if(g?.gradient?.type==='solid'&&g.gradient.colorStops.length>=2){const stops=g.gradient.colorStops;f.gradient={kind:g.type==='radial'?'radial':'linear',angle:-(g.angle||0),from:hex(stops[0].color),to:hex(stops.at(-1).color)};}
-    if(s){const angle=(s.angle||0)*Math.PI/180,dist=(s.distance?.value||0)*mm;f.shadow={x:-Math.cos(angle)*dist,y:Math.sin(angle)*dist,blur:(s.size?.value||0)*mm,color:hex(s.color),alpha:s.opacity??1};}
+    if(s){const dist=(s.distance?.value||0)*mm;f.shadow={...shadowOffset(s.angle||0,dist),blur:(s.size?.value||0)*mm,color:hex(s.color),alpha:s.opacity??1};}
     return Object.keys(f).length?f:null;
   }
   function rasterGradient(image){
@@ -80,5 +89,5 @@ const VectorEffects=(()=>{
     const overlay=M.make('rect',{...bounds,mask:'url(#'+id+')','data-raster-gradient':'1'});
     group.append(image,defs,overlay);return group;
   }
-  return {read,apply,commit,refresh,pdf,modes,psdStyle,fromPsd,rasterGradient};
+  return {read,apply,commit,refresh,pdf,modes,psdStyle,fromPsd,rasterGradient,shadowAngle,shadowOffset};
 })();
