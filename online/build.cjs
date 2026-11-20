@@ -13,7 +13,7 @@ let html=fs.readFileSync(path.join(src,'index.html'),'utf8')
  .replace('将 AI、EPS、PDF 或 PSD 拖到画板上','拖入 PDF、PDF 兼容 AI、EPS、PSD 或 SVG。文件在你的浏览器中处理。')
  .replace('accept=".ai,.eps,.pdf,.psd"','accept=".svg,.ai,.eps,.pdf,.psd"')
  .replace('本机工作台','浏览器工作台').replace('id="format"','title="PDF 保留多页；PSD 可选当前或全部画板；Illustrator 画板包可还原排布" id="format"')
- .replace('<script defer src="/screen.js"></script>',['document-fonts','paragraphs','model','aligned-stroke','artboard-model','artboard-formats','appearance','formats','stack-order','browser-engine','picking','screen','text-controls','canvas-type','text-style','layer-tools','artboard-ui','appearance-ui','board-sampler'].map(n=>'<script defer src="/'+n+'.js"></script>').join(''))
+ .replace('<script defer src="/screen.js"></script>',['document-fonts','paragraphs','model','aligned-stroke','artboard-model','artboard-formats','appearance','formats','stack-order','browser-engine','picking','screen','text-controls','canvas-type','text-style','layer-tools','artboard-ui','appearance-ui','board-sampler','page-dock'].map(n=>'<script defer src="/'+n+'.js"></script>').join(''))
  .replace('<div id="upgrade"','<div id="formatNotice" hidden style="padding:5px 12px;font-size:12px;color:#684d20;background:#fff6de">该页含混合模式或透明蒙版，浏览器预览及改动后的输出可能与原稿有差异。</div><div id="upgrade"').replace('<form method="dialog"><button class="primary">关闭','<p>PDF 可在 Illustrator 中继续编辑。支持打开 PDF 兼容 AI。EPS 输出会将文字转为轮廓。PSD 可导出全部原生画板。Shift+O 切换画板工具；在 Illustrator 运行画板包内脚本可还原画板并另存为 AI。</p><p><a href="/licenses/index.html" target="_blank" rel="noopener">版权与第三方许可</a></p><form method="dialog"><button class="primary">关闭');
 fs.writeFileSync(path.join(out,'index.html'),html);
 let ui=fs.readFileSync(path.join(src,'screen.js'),'utf8').replace(/\r\n/g,'\n');
@@ -22,7 +22,7 @@ ui=ui.replace(/const route=state.svgScene\?[^;]+;if\(!route\|\|!d.items.length\)
 ui=ui.replace(/const resp=await fetch\(route\+[\s\S]*?const raw=await resp.text\(\);/,'const raw=VectorBrowser.scene();');
 ui=replace(ui,"const d=doc();$('paper').hidden=!d;","const d=doc();$('formatNotice').hidden=!d?.effects;$('paper').hidden=!d;");
 ui=replace(ui,'pageTabs();list();props();view();draftStatus();','pageTabs();list();props();view();draftStatus();window.ArtboardUI?.sync();');
-ui=replace(ui,"const d=doc();$('pageCount')","const d=doc(),boards=VectorBrowser.artboards();$('pageCount')");
+ui=replace(ui,"const d=doc();$('pageCount')","const d=doc(),boards=VectorBrowser.artboards();window.PageDock?.sync(boards,d?.page);$('pageCount')");
 ui=replace(ui,"document.createTextNode('第 '+(i+1)+' 页')","document.createTextNode(boards[i]?.name||'第 '+(i+1)+' 页')");
 ui=replace(ui,"if(['act','undo','redo'].includes(command))thumbs.clear();","if(['act','boards','undo','redo'].includes(command))thumbs.clear();");
 ui=replace(ui,'function selectionBox(box){','function selectionBox(box){window.VectorTextControls?.schedule();window.CanvasType?.schedule();');
@@ -42,6 +42,8 @@ ui=replace(ui,"if(m.kind==='stroke'){o.stroke={enabled:m.enabled,","if(m.kind===
 ui=replace(ui,"if(enabled!==o.stroke.enabled||enabled&&(width!==o.stroke.width||c!==was))out.push({kind:'stroke',enabled,","const position=$('strokePosition').disabled?'center':$('strokePosition').value;if(enabled!==o.stroke.enabled||enabled&&(width!==o.stroke.width||c!==was||position!==(o.stroke.position||'center')))out.push({kind:'stroke',position,enabled,");
 ui=replace(ui,"strokeOn:'stroke',x:", "strokeOn:'stroke',strokePosition:'stroke',x:");
 ui=replace(ui,"if(o.stroke){$('strokeOn').checked=", "if(o.stroke){const can=o.canPlaceStroke??(['text','rect','shape'].includes(o.type)&&o.localShape!=='line');$('strokePosition').disabled=!can;$('strokePosition').value=can?(o.stroke.position||(o.stroke.enabled?'center':'outside')):'center';$('strokeOn').checked=");
+ui=replace(ui,'draftStatus();scheduleLayout();dirtyUI();','draftStatus();scheduleLayout();dirtyUI();window.PageDock?.draftChanged();');
+ui=replace(ui,'doc().items=rows;assignSelection(', 'doc().items=rows;window.PageDock?.draftChanged();assignSelection(');
 ui=replace(ui,"link.download='';","link.download=data.downloadName;");
 ui=replace(ui,"$('format').value.toUpperCase()+' 副本'","$('format').selectedOptions[0].textContent+' 副本'");
 ui=replace(ui,'corner?(chosen()||pickedItems()[0]):doc().items.find(o=>{const h=o.hit;return !o.locked&&matches(o)&&pos.x>=h.x&&pos.x<=h.x+h.w&&pos.y>=h.y&&pos.y<=h.y+h.h;})','corner?(chosen()||pickedItems()[0]):((!e.shiftKey&&!e.ctrlKey&&!e.altKey&&window.CanvasType?.frameAt(pos))||browserCanvasPick(e,pos))');
@@ -50,8 +52,8 @@ ui=ui.replace('ai|eps|pdf|psd','ai|eps|pdf|psd|svg').replace('请选择 AI、EPS
  .replaceAll('本机工作副本','浏览器工作副本').replaceAll('本机处理','浏览器内处理').replaceAll('正在本机打开','正在打开').replaceAll('Illustrator 可用字体','本机可用字体')
  .replace('img-src data:;','img-src data:; font-src data:;');
 if(ui.includes('127.0.0.1')||ui.includes('fetch(route'))throw Error('在线包仍引用本机服务');
-fs.writeFileSync(path.join(out,'screen.js'),ui);fs.writeFileSync(path.join(out,'screen.css'),fs.readFileSync(path.join(src,'screen.css'),'utf8')+'\n'+fs.readFileSync(path.join(__dirname,'text-controls.css'),'utf8'));
-for(const name of ['document-fonts','canvas-type','text-style','layer-tools','artboard-model','artboard-formats','artboard-ui','appearance','appearance-ui','board-sampler','aligned-stroke','stack-order','paragraphs','model','formats','browser-engine','picking','text-controls','postscript-worker'])fs.copyFileSync(path.join(__dirname,name+'.js'),path.join(out,name+'.js'));
+fs.writeFileSync(path.join(out,'screen.js'),ui);fs.writeFileSync(path.join(out,'screen.css'),fs.readFileSync(path.join(src,'screen.css'),'utf8')+'\n'+fs.readFileSync(path.join(__dirname,'text-controls.css'),'utf8')+'\n'+fs.readFileSync(path.join(__dirname,'page-dock.css'),'utf8'));
+for(const name of ['document-fonts','canvas-type','text-style','layer-tools','artboard-model','artboard-formats','artboard-ui','appearance','appearance-ui','board-sampler','page-dock','aligned-stroke','stack-order','paragraphs','model','formats','browser-engine','picking','text-controls','postscript-worker'])fs.copyFileSync(path.join(__dirname,name+'.js'),path.join(out,name+'.js'));
 for(const [from,to] of Object.entries({'fzstd/umd/index.js':'fzstd.js','fflate/umd/index.js':'fflate.js','pdfjs-dist/build/pdf.min.js':'pdf.js','pdfjs-dist/build/pdf.worker.min.js':'pdf.worker.js','pdfjs-dist/cmaps':'cmaps','pdfjs-dist/standard_fonts':'standard_fonts','dompurify/dist/purify.min.js':'purify.js','ag-psd/dist/bundle.js':'psd.js','pdfkit/js/pdfkit.standalone.js':'pdfkit.js','svg-to-pdfkit/source.js':'svg-to-pdf.js','@jspawn/ghostscript-wasm/gs.js':'gs.js','@jspawn/ghostscript-wasm/gs.wasm':'gs.wasm'}))fs.cpSync(path.join(modules,from),path.join(lib,to),{recursive:true});
 fs.copyFileSync(path.join(__dirname,'illustrator-layout.jsx'),path.join(out,'illustrator-layout.jsx'));
 const writer=path.join(lib,'svg-to-pdf.js'),originalWriter=fs.readFileSync(writer,'utf8');

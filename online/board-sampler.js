@@ -35,22 +35,23 @@
     for(const [k,v] of Object.entries({x:0,y:0,width:w,height:h}))copy.setAttribute(k,v);
     return copy;
   }
-  async function snapshot(s){
+  async function snapshot(isCurrent,limit){
     // Let any pending input paint finish before capturing a draft.
     await new Promise(ok=>requestAnimationFrame(()=>requestAnimationFrame(ok)));
-    if(session!==s)return;
+    if(!isCurrent())return;
     const d=doc(),art=$('art');
     if(!layoutSteps.length){await art.decode();return art;}
     if(layoutBase?.length&&!activeScene){await ensureVectorScene();
-      if(!activeScene&&session===s)await new Promise(ok=>{const obs=new MutationObserver(()=>{if(activeScene||session!==s)done();});
+      if(!activeScene&&isCurrent())await new Promise(ok=>{const obs=new MutationObserver(()=>{if(activeScene||!isCurrent())done();});
         const end=setTimeout(done,3500);function done(){clearTimeout(end);obs.disconnect();ok();}obs.observe(paper,{attributes:true,attributeFilter:['class']});});}
-    if(session!==s)return;
+    if(!isCurrent())return;
     const live=activeScene?.key===d.preview?activeScene.svg:null;
     if(!live&&layoutBase?.length&&layoutSteps.some(step=>step.some(m=>!isLocalItem(m.id))))throw Error('当前画板的矢量预览尚未就绪，请稍后再取色。');
     const svg=VectorModel.make('svg',{width:d.width+'mm',height:d.height+'mm',viewBox:'0 0 '+d.width+' '+d.height});
     if(live)svg.append(layerCopy(live,d.width,d.height));
     else svg.append(layerCopy(VectorModel.parse(VectorBrowser.scene()),d.width,d.height));
     for(const layer of [fallbackTextOverlay,localOverlay])if(layer.childElementCount)svg.append(layerCopy(layer,d.width,d.height));
+    if(limit){const k=Math.min(limit.width/d.width,limit.height/d.height);svg.setAttribute('width',Math.max(1,Math.round(d.width*k)));svg.setAttribute('height',Math.max(1,Math.round(d.height*k)));}
     const url=URL.createObjectURL(new Blob([VectorModel.xml(svg)],{type:'image/svg+xml'}));
     try{const img=new Image();img.src=url;await img.decode();return img;}finally{URL.revokeObjectURL(url);}
   }
@@ -60,7 +61,7 @@
     clearTimeout(layoutTimer);
     const s={kind,preview:doc().preview,selection:JSON.stringify(pickedIds()),ids:targets(kind).map(o=>o.id),trigger,canvas:document.createElement('canvas')};
     session=s;surface.hidden=banner.hidden=false;paper.classList.add('sampling-color');banner.firstChild.textContent='点选画板颜色 → '+labels[kind];surface.focus({preventScroll:true});
-    s.ready=snapshot(s).then(img=>{if(session===s){s.img=img;if(s.pointer)show(s,...s.pointer);}}).catch(()=>{if(session===s){stop();error('无法读取当前画板的颜色，请等待预览完成后再试。');}});
+    s.ready=snapshot(()=>session===s).then(img=>{if(session===s){s.img=img;if(s.pointer)show(s,...s.pointer);}}).catch(()=>{if(session===s){stop();error('无法读取当前画板的颜色，请等待预览完成后再试。');}});
   }
   function sample(s,x,y){
     const r=paper.getBoundingClientRect(),v=$('viewport').getBoundingClientRect();
@@ -96,5 +97,5 @@
   banner.lastChild.onclick=()=>{stop();$('message').textContent='已取消取色';};
   document.addEventListener('keydown',e=>{if(!session)return;if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();const from=session.trigger;banner.lastChild.click();if(from.offsetParent)from.focus({preventScroll:true});}else if(e.key==='Tab'||e.ctrlKey||e.metaKey){stop();}else e.stopImmediatePropagation();},true);
   document.addEventListener('pointerdown',e=>{if(session&&!surface.contains(e.target)&&!banner.contains(e.target))stop();},true);
-  window.BoardSampler={update,get active(){return !!session;}};update();
+  window.BoardSampler={update,snapshot,get active(){return !!session;}};update();
 })();
