@@ -4,12 +4,14 @@ const M=VectorModel,F=VectorFormats,files=new Map();
 const svgCache=new WeakMap();
 let original=null,pages=[],idx=0,filename='',rev=0,serial=0,saved=0,stamp=0,preview='',selected=[],items=[],snapshots=[],cursor=0,download='',remapped={};
 const current=()=>pages[idx],mapId=k=>remapped[k]||k;
-const snapshot=()=>({pages:pages.map(p=>{if(!svgCache.has(p))svgCache.set(p,M.xml(p));return svgCache.get(p);}),idx,filename,stamp});
-function restore(s){pages=s.pages.map(M.parse);idx=s.idx;filename=s.filename;stamp=s.stamp;M.resumeSerial(pages);selected=[];}
+const previewIds=new WeakMap();let nextPreviewId=0;
+function boardList(){return Artboards.list(pages).map(b=>{const p=pages[b.index];if(!previewIds.has(p))previewIds.set(p,++nextPreviewId);return {...b,token:previewIds.get(p)};});}
+const snapshot=()=>({boards:Artboards.list(pages).map((b,i)=>({...b,edited:pages[i].dataset.layoutEdited==='1'})),pages:pages.map(p=>{if(!svgCache.has(p))svgCache.set(p,M.xml(p));return svgCache.get(p);}),idx,filename,stamp});
+function restore(s){pages=s.pages.map(M.parse);s.boards?.forEach((b,i)=>{if(pages[i]){Artboards.set(pages[i],b);if(b.edited)pages[i].dataset.layoutEdited='1';else delete pages[i].dataset.layoutEdited;}});Artboards.initialize(pages);idx=s.idx;filename=s.filename;stamp=s.stamp;M.resumeSerial(pages);selected=[];}
 function history(){snapshots.splice(cursor+1);snapshots.push(snapshot());while(snapshots.length>2&&(snapshots.length>12||snapshots.length*snapshots.at(-1).pages.reduce((n,s)=>n+s.length,0)>100*1024*1024))snapshots.shift();cursor=snapshots.length-1;}
 function state(){const root=current();return {app:'vector-browser',psd:true,realtimeBatch:true,cloneBatch:true,layoutBatch:true,historyCache:true,svgScene:true,drawingTools:1,sample:"折序 F/01 · 两页说明书",version:rev,
   document:root?{name:filename,unit:root.dataset.boardUnit||'mm',effects:root.dataset.effects==='1',page:idx,pages:pages.length,width:root.viewBox.baseVal.width,height:root.viewBox.baseVal.height,items:structuredClone(items),selected:selected.length===1?selected[0]:null,selection:selected.slice(),preview,canUndo:cursor>0,canRedo:cursor<snapshots.length-1,edited:stamp!==saved,remapped:{...remapped}}:null};}
-function render(){const prev=preview;preview='';if(current()){items=M.measure(current());const svg=M.xml(current());preview=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));}else items=[];
+function render(){const prev=preview;preview='';if(current()){VectorEffects.refresh(current());items=M.measure(current());const svg=M.xml(current());preview=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));}else items=[];
   if(prev)setTimeout(()=>URL.revokeObjectURL(prev),30000);}
 let workspaceId=sessionStorage.getItem('vq-browser-project');if(!workspaceId){workspaceId=crypto.randomUUID();sessionStorage.setItem('vq-browser-project',workspaceId);}
 const database=new Promise(resolve=>{try{const r=indexedDB.open('vq-browser-workbench',1);r.onupgradeneeded=()=>r.result.createObjectStore('tabs');r.onsuccess=()=>resolve(r.result);r.onerror=()=>resolve(null);}catch{resolve(null);}});
@@ -28,17 +30,17 @@ async function action(a){
     case 'shape':case 'rectangle':e=M.newShape(a);p.append(e);break;
     case 'addText':e=M.mark(M.make('text',{x:0,y:0,transform:'translate('+v.width*.35+' '+v.height*.45+')','font-size':16*M.PT,'font-family':'sans-serif',fill:'#000000'}),'text');e.textContent='新增文字';p.append(e);VectorParagraphs.store(e,{x:0,y:0,width:40,leading:1.2});break;
     case 'text':M.setText(e,a);break;
+    case 'appearance':VectorEffects.commit(p,e,a.fx);break;
     case 'typeStyle':VectorTextStyle.commit(p,e,a.style);break;
     case 'paragraph':VectorParagraphs.store(e,a.frame);M.setText(e,{value:e.dataset.text??e.textContent});break;
     case 'geometry':M.geom(p,e,a);break;
     case 'round':{const t=e.localName==='rect'?e:M.clipRect(p,e);if(t){const m=M.world(p,e);t.setAttribute('rx',Math.min(a.r/Math.hypot(m.a,m.b),t.width.baseVal.value/2,t.height.baseVal.value/2));}break;}
     case 'stroke':{const t=paintTarget(e),m=M.world(p,e);t.style.stroke=a.enabled?(a.color||t.style.stroke||'#242735'):'none';t.style.strokeWidth=(a.width*M.PT/(Math.hypot(m.a,m.b)||1))+'px';break;}
-    case 'color':for(const t of [e,...e.querySelectorAll('tspan')])t.style.fill=a.enabled===false?'none':a.color;break;
+    case 'color':{const f=VectorEffects.read(e);if(f){e.dataset.solidFill=a.color;if(f.gradient)VectorEffects.commit(p,e,{...f,gradient:null});}}for(const t of [e,...e.querySelectorAll('tspan')])t.style.fill=a.enabled===false?'none':a.color;break;
     case 'duplicate':{e=shiftUnique(e);M.move(p,e,new DOMMatrix().translate(3,3));break;}
     case 'delete':e.remove();return [];
     case 'order':{const nodes=a.ids?.length?a.ids.map(row):[e];VectorStack.reorder(p,nodes,a.direction,a.source?row(a.source):null);return nodes.map(M.id);}
-    case 'pageAdd':pages.splice(++idx,0,M.board(v.width,v.height,p.dataset.boardUnit||'mm'));return [];
-    case 'pageCopy':pages.splice(++idx,0,M.clone(p));return [];
+    case 'pageAdd':case 'pageCopy':idx=Artboards.modify(pages,idx,{op:a.kind==='pageAdd'?'add':'duplicate'});current().dataset.layoutEdited='1';return [];
     case 'pageDelete':if(pages.length<=1)throw Error('至少需要一页');pages.splice(idx,1);idx=Math.min(idx,pages.length-1);return [];
     case 'pageSize':if(validBoardUnit(a.unit)&&a.unit!==(p.dataset.boardUnit||'mm')){p.dataset.boardUnit=a.unit;p.dataset.unitChanged='1';}p.setAttribute('width',a.w+'mm');p.setAttribute('height',a.h+'mm');p.setAttribute('viewBox','0 0 '+a.w+' '+a.h);return [];
     case 'importArtwork':{
@@ -72,21 +74,28 @@ async function request(route,opts={}){
  if(cmd==='upload'){const asset=crypto.randomUUID();files.set(asset,opts.body);return {asset};}
  const a=JSON.parse(opts.body||'{}');if(a.version!==rev)throw Error('画板已更新，请重试。');
  if(cmd==='export'){const result=await F.output(pages,idx,a.format,original);if(download)URL.revokeObjectURL(download);download=URL.createObjectURL(result);if(a.format==='pdf')saved=stamp;
-   rev++;persist();const filenameOut=filename.replace(/\.[^.]+$/,'')+'-编辑版'+(a.format==='pdf'?'':'-第'+(idx+1)+'页')+'.'+a.format;return {...state(),download,downloadName:filenameOut};}
+   rev++;persist();const multi=['pdf','psd-all','ai-kit'].includes(a.format),ext=({'psd-all':'psd','ai-kit':'zip'})[a.format]||a.format;const filenameOut=filename.replace(/\.[^.]+$/,'')+'-编辑版'+(multi?'':'-第'+(idx+1)+'页')+'.'+ext;return {...state(),download,downloadName:filenameOut};}
+ if(cmd==='boards'){
+   const prior=snapshot(),old=current(),edited=pages[a.index??idx],size=edited?.getAttribute('viewBox');
+   try{idx=Artboards.modify(pages,idx,a);current().dataset.layoutEdited='1';selected=[];stamp=++serial;
+     const resized=a.op==='change'&&size!==edited.getAttribute('viewBox');if(resized){svgCache.delete(edited);previewIds.delete(edited);}
+     history();if(current()!==old||resized)render();rev++;persist();return state();
+   }catch(e){restore(prior);render();throw e;}
+ }
  if(cmd==='page'){if(!pages[a.page])throw Error('页面不存在。');idx=a.page;selected=[];}
  else if(cmd==='close'){pages=[];original=null;idx=0;filename='';selected=[];snapshots=[];cursor=0;files.clear();}
  else if(cmd==='open'||cmd==='blank'){const f=cmd==='open'&&a.sample?await bundledExample():files.get(a.asset),next=cmd==='open'?await F.open(f):[M.board(a.w,a.h,validBoardUnit(a.unit)?a.unit:'mm')];if(!next.length)throw Error('文件没有可用画板。');original=f&&/\.(pdf|ai)$/i.test(f.name)&&new TextDecoder().decode(await f.slice(0,1024).arrayBuffer()).includes('%PDF-')?f:null;
-    pages=next;pages.forEach((p,i)=>{delete p.dataset.unitChanged;if(original&&!p.rebuildPdfText)p.dataset.sourcePage=i;else delete p.dataset.sourcePage;});idx=0;filename=f?.name||'未命名画板';snapshots=[];cursor=0;stamp=saved=++serial;selected=[];history();files.clear();}
+    pages=next;Artboards.initialize(pages);pages.forEach((p,i)=>{delete p.dataset.layoutEdited;delete p.dataset.unitChanged;VectorEffects.refresh(p);if(original&&!p.rebuildPdfText)p.dataset.sourcePage=i;else delete p.dataset.sourcePage;});idx=0;filename=f?.name||'未命名画板';snapshots=[];cursor=0;stamp=saved=++serial;selected=[];history();files.clear();}
  else if(cmd==='undo'||cmd==='redo'){const pos=cursor+(cmd==='undo'?-1:1);if(!snapshots[pos])throw Error('没有可用记录');cursor=pos;restore(snapshots[pos]);}
  else{const prior=snapshot(),sameSize=a.action?.kind==='pageSize'&&a.action.w===current().viewBox.baseVal.width&&a.action.h===current().viewBox.baseVal.height;remapped={};try{
    if(cmd==='act')selected=await action(a.action);
    else if(cmd==='edits'||cmd==='layout'){for(const c of a.changes||a.moves||[]){if(c.kind==='create'){const [key]=await action(c.action);remapped[c.id]=key;selected=[key];}
      else if(c.kind==='clone'){const src=row(c.source),n=shiftUnique(src);M.move(current(),n,new DOMMatrix().translate(c.dx,c.dy));const key=M.id(n);remapped[c.id]=key;selected=[key];}
      else selected=await action({kind:'geometry',...c});}}
-   else throw Error('未知操作。');if(!['pageAdd','pageCopy','pageDelete'].includes(a.action?.kind)){if(!sameSize)delete current().dataset.sourcePage;svgCache.delete(current());}stamp=++serial;history();if(a.action?.asset)files.delete(a.action.asset);
+   else throw Error('未知操作。');if(!['pageAdd','pageCopy','pageDelete'].includes(a.action?.kind)){if(!sameSize)delete current().dataset.sourcePage;svgCache.delete(current());previewIds.delete(current());}stamp=++serial;history();if(a.action?.asset)files.delete(a.action.asset);
  }catch(err){restore(prior);render();throw err;}}
  if(['open','blank','close'].includes(cmd))VectorFonts.retain(pages);
  rev++;render();persist();return state();
 }
-window.VectorBrowser={request,scene:()=>M.scene(current()),sourceHits:(...point)=>M.sourceHits(current(),...point)};
+window.VectorBrowser={request,artboards:boardList,artPreview:i=>new Blob([svgCache.get(pages[i])||M.xml(pages[i])],{type:'image/svg+xml'}),scene:()=>M.scene(current()),sourceHits:(...point)=>M.sourceHits(current(),...point)};
 })();

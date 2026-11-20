@@ -8,7 +8,7 @@ Edit a product manual directly on the artboard. Open a PDF, change a heading, mo
 
 Open the sample, switch to page two and double-click the heading. Type on the artboard, drag the text frame to reflow the paragraph, or switch to its object handles to scale the lettering. Alt-drag duplicates a selection. The layer panel supports drag-to-reorder and the inspector supports multi-object sizing, alignment and text style transfer.
 
-**Formats.** The browser edition opens PDF, PDF-compatible AI, EPS, SVG and supported PSD files. It exports multi-page PDF and current-artboard SVG, EPS or layered RGB PSD. EPS outlines text. Some PSD elements rasterize. Outlined text in an input file remains a path; complex transparency, effects and unavailable fonts can affect fidelity. Illustrator can split exported PDF text into lines or font runs. The optional Windows edition uses an installed, licensed copy of Illustrator for native AI export.
+**Formats.** The browser edition opens PDF, PDF-compatible AI, EPS, SVG and supported PSD files. It exports multi-page PDF and current-artboard SVG/EPS, layered RGB PSD or multi-artboard PSD. EPS outlines text. Some PSD elements rasterize. Outlined text in an input file remains a path; complex transparency, effects and unavailable fonts can affect fidelity. Illustrator can split exported PDF text into lines or font runs. Use Shift+O to arrange named artboards and the Illustrator transfer ZIP to rebuild their positions and editable gradient text in Illustrator. The optional Windows edition uses an installed, licensed copy of Illustrator for native AI export.
 
 ## Run locally
 

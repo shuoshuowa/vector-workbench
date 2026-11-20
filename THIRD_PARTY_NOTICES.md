@@ -12,6 +12,7 @@
 | ag-psd | PSD 读写 | [Agamnentzar/ag-psd · MIT](https://github.com/Agamnentzar/ag-psd) |
 | DOMPurify | 清理导入 SVG 的不安全元素 | [cure53/DOMPurify · Apache-2.0 或 MPL-2.0](https://github.com/cure53/DOMPurify) |
 | Noto Sans SC | 可嵌入的中文回退字库 | Noto Sans SC Medium · [随附的 SIL OFL 1.1 与字体版权说明](assets/fonts/OFL.txt) |
+| fflate / fzstd | 读写画板交接包、读取支持的 Illustrator 布局压缩流 | [fflate](https://github.com/101arrowz/fflate)、[fzstd](https://github.com/101arrowz/fzstd)，均为 MIT |
 | Ghostscript WebAssembly | 在独立 Web Worker 中运行 PostScript/EPS 命令行转换 | [发布包 0.0.2](https://www.npmjs.com/package/@jspawn/ghostscript-wasm/v/0.0.2) · [对应构建源码及其上游子模块](https://github.com/jsscheller/ghostscript-wasm/tree/d45193808b707ebefb3df7560586b3d404d64c39) · AGPL-3.0 |
 
 Ghostscript 的编译产物在构建时从锁定的 npm 包复制到站点。本仓库不重新许可这些文件。分发含有该转换器的构建时，应按上游条款提供许可、相应源代码和适用的通知。需要使用 Artifex 商业条款时，请直接联系 [Artifex](https://artifex.com/licensing/)；本项目作者的商业许可不能代替上游授权。

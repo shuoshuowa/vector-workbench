@@ -31,3 +31,12 @@
 - `server.cjs`、`engine.jsx`、`scene.cjs`、`scene.jsx` 提供 Windows 本机服务与 Illustrator 脚本。
 - `assets/fonts/`、`vendor/` 提供构建使用的字体、库及其许可。
 - `examples/` 是为本仓库创作的双页阅读架说明书及两张独立 SVG。
+
+## 与 Photoshop 和 Illustrator 交换画板
+
+按 **Shift+O** 进入画板工具。单击选择，拖动移动整块画板和内容，拖角点修改边界。按 **Alt** 拖动复制，双击画板进入内容编辑。右侧可输入名称、坐标和尺寸，左侧拖动列表调整导出页序；空间位置和页序分别保存。
+
+- **PSD · 全部画板** 写入 Photoshop 原生画板组，包含名称、尺寸、相对位置与图层。普通 PSD 仍按单画板处理。画板外的可见图层会单独列出。浏览器只还原支持的图层类型和效果。
+- **Illustrator 画板包 · ZIP** 包含 artwork.pdf 和 restore-artboards.jsx。完整解压，在 Illustrator 选择「文件 → 脚本 → 其他脚本」，运行 JSX，再将新文档另存为 .ai。脚本在自己的 Illustrator 中执行；网站不连接桌面程序。
+- PDF 兼容 AI 可以按页打开。能读取原生画板表时保留名称和排布；缺少该表或版本不匹配时，按 PDF 页面尺寸和顺序排列。PDF 导出保留多页及本工作台的布局记录。
+- 导出普通 PDF 时，投影使用带透明度的图像，文字与普通路径仍单独写入。Illustrator 直接读入渐变文字时可能生成轮廓；画板包会在 Illustrator 内重建本工具设置的原生渐变文字。
