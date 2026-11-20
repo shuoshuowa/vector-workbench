@@ -28,6 +28,7 @@ const VectorShapeFills=(()=>{
     const s=stops(g);return {type:'solid',name:'Gradient',smoothness:1,colorStops:s.colors.map(v=>({location:v.at,midpoint:v.mid,color:rgb(v.value)})),opacityStops:s.alphas.map(v=>({location:v.at,midpoint:v.mid,opacity:v.value}))};
   }
   function pixels(v,ppi){return (v?.value||0)*(v?.units==='Points'?ppi/72:1);}
+  const cornerNames=['topLeft','topRight','bottomRight','bottomLeft'];
   function importLayer(layer,ppi){
     const fill=layer.vectorFill,mask=layer.vectorMask,paths=mask?.paths,desc=layer.vectorOrigination?.keyDescriptorList?.[0];
     if(!fill||!paths?.length||mask.disable||mask.invert||mask.fillStartsWithAllPixels||layer.mask||layer.clipping||paths.some(p=>p.open||p.operation&&p.operation!=='combine'||!p.knots?.length))return null;
@@ -35,13 +36,16 @@ const VectorShapeFills=(()=>{
     const grad=gradient(fill),ink=grad?.from||hex(fill.color);if(!ink||!grad&&fill.type!=='color')return null;
     let x=Infinity,y=Infinity,right=-Infinity,bottom=-Infinity;for(const path of paths)for(const knot of path.knots){const [, ,px,py]=knot.points;x=Math.min(x,px);y=Math.min(y,py);right=Math.max(right,px);bottom=Math.max(bottom,py);}
     const w=right-x,h=bottom-y;if(!(w>0&&h>0))return null;
-    const bounds=desc?.keyOriginShapeBoundingBox,corners=desc?.keyOriginBoxCorners||[],radii=Object.values(desc?.keyOriginRRectRadii||{}).map(v=>pixels(v,ppi));
+    const bounds=desc?.keyOriginShapeBoundingBox,corners=desc?.keyOriginBoxCorners||[],radii=cornerNames.map(key=>pixels(desc?.keyOriginRRectRadii?.[key],ppi));
     const near=(a,b)=>Math.abs(a-b)<.08;
     const rect=paths.length===1&&[1,2].includes(desc?.keyOriginType)&&!desc?.keyShapeInvalidated&&bounds&&
       near(pixels(bounds.left,ppi),x)&&near(pixels(bounds.right,ppi),x+w)&&near(pixels(bounds.top,ppi),y)&&near(pixels(bounds.bottom,ppi),y+h)&&
-      corners.every(c=>(near(c.x,x)||near(c.x,x+w))&&(near(c.y,y)||near(c.y,y+h)))&&radii.every(r=>near(r,radii[0]));
+      corners.every(c=>(near(c.x,x)||near(c.x,x+w))&&(near(c.y,y)||near(c.y,y+h)));
     let el;
-    if(rect)el=M.mark(M.make('rect',{x,y,width:w,height:h,rx:Math.min(w/2,h/2,radii[0]||0)}),'rect',layer.name);
+    if(rect&&!radii.every(r=>near(r,radii[0]))){
+      const values=radii.map(r=>Math.max(0,Math.min(r,w/2,h/2)));
+      el=M.mark(M.make('path',{d:M.roundedPath(x,y,w,h,values),'data-corner-radii':values.join(' ')}),'rect',layer.name);
+    }else if(rect)el=M.mark(M.make('rect',{x,y,width:w,height:h,rx:Math.min(w/2,h/2,radii[0]||0)}),'rect',layer.name);
     else{const commands=[];for(const path of paths){const k=path.knots;commands.push('M',...k[0].points.slice(2,4));for(let i=0;i<k.length;i++){const next=k[(i+1)%k.length].points;commands.push('C',...k[i].points.slice(4,6),...next.slice(0,4));}commands.push('Z');}
       el=M.mark(M.make('path',{d:commands.join(' '),'fill-rule':paths[0].fillRule||'nonzero'}),'shape',layer.name);}
     el.setAttribute('fill',layer.vectorStroke?.fillEnabled===false?'none':ink);
@@ -51,17 +55,29 @@ const VectorShapeFills=(()=>{
     return el;
   }
   function exportRect(page,e,ppi){
-    if(e.localName!=='rect'||getComputedStyle(e).fill==='none')return null;
+    if(!e.matches('rect,path[data-corner-radii]')||getComputedStyle(e).fill==='none')return null;
     const m=M.world(page,e);if(m.a<=0||m.d<=0||Math.abs(m.b)+Math.abs(m.c)>.00002)return null;
     const scale=ppi/25.4,b=M.box(page,e),x=b.x*scale,y=b.y*scale,w=b.w*scale,h=b.h*scale,R=x+w,B=y+h;
-    const rx=Math.min(w/2,e.rx.baseVal.value*m.a*scale),ry=Math.min(h/2,(e.hasAttribute('ry')?e.ry.baseVal.value:e.rx.baseVal.value)*m.d*scale),k=.55228475;
+    const axes=M.cornerAxes(page,e,m);if(!axes)return null;
+    const xs=(axes.radii||Array(4).fill(axes.x)).map(r=>Math.min(w/2,r*scale));
+    const ys=(axes.radii||Array(4).fill(axes.y)).map(r=>Math.min(h/2,r*scale));
+    const k=.55228475,knots=[];
     const knot=(x,y,ix=x,iy=y,ox=x,oy=y)=>({linked:true,points:[ix,iy,x,y,ox,oy]});
-    const knots=rx&&ry?[knot(x+rx,y,x+rx-rx*k,y),knot(R-rx,y,R-rx,y,R-rx+rx*k,y),knot(R,y+ry,R,y+ry-ry*k),knot(R,B-ry,R,B-ry,R,B-ry+ry*k),knot(R-rx,B,R-rx+rx*k,B),knot(x+rx,B,x+rx,B,x+rx-rx*k,B),knot(x,B-ry,x,B-ry+ry*k),knot(x,y+ry,x,y+ry,x,y+ry-ry*k)]:[knot(x,y),knot(R,y),knot(R,B),knot(x,B)];
+    // Follow the contour clockwise, using a single anchor for each square corner.
+    function corner(i,cx,cy,dx,dy){
+      const u=xs[i],v=ys[i];
+      if(!u||!v){knots.push(knot(cx,cy));return;}
+      if(i===0||i===2)knots.push(knot(cx,cy+dy*v,cx,cy+dy*v,cx,cy+dy*v*(1-k)),
+        knot(cx+dx*u,cy,cx+dx*u*(1-k),cy));
+      else knots.push(knot(cx+dx*u,cy,cx+dx*u,cy,cx+dx*u*(1-k),cy),
+        knot(cx,cy+dy*v,cx,cy+dy*v*(1-k)));
+    }
+    corner(0,x,y,1,1);corner(1,R,y,-1,1);corner(2,R,B,-1,-1);corner(3,x,B,1,-1);
     const px=value=>({units:'Pixels',value}),g=VectorEffects.read(e)?.gradient,solid=e.dataset.solidFill||getComputedStyle(e).fill;
     let color;if(!g){const ctx=document.createElement('canvas').getContext('2d');ctx.fillStyle=solid;if(!/^#[0-9a-f]{6}$/i.test(ctx.fillStyle)||String(solid).includes('url('))return null;color=rgb(ctx.fillStyle);}
     const vectorFill=g?{...psdGradient(g),style:g.kind,angle:-g.angle,scale:g.scale??1,offset:g.offset||{x:0,y:0},align:true}:({type:'color',color});
-    const desc={keyOriginType:rx?2:1,keyOriginResolution:ppi,keyOriginShapeBoundingBox:{left:px(x),top:px(y),right:px(R),bottom:px(B)},keyOriginBoxCorners:[{x,y},{x:R,y},{x:R,y:B},{x,y:B}]};
-    if(rx)desc.keyOriginRRectRadii=Object.fromEntries(['topLeft','topRight','bottomLeft','bottomRight'].map(n=>[n,px(rx)]));
+    const desc={keyOriginType:xs.some(Boolean)?2:1,keyOriginResolution:ppi,keyOriginShapeBoundingBox:{left:px(x),top:px(y),right:px(R),bottom:px(B)},keyOriginBoxCorners:[{x,y},{x:R,y},{x:R,y:B},{x,y:B}]};
+    if(xs.some(Boolean))desc.keyOriginRRectRadii=Object.fromEntries(cornerNames.map((n,i)=>[n,px(xs[i])]));
     return {vectorFill,vectorMask:{paths:[{open:false,operation:'combine',fillRule:'even-odd',knots}]},vectorOrigination:{keyDescriptorList:[desc]}};
   }
   function offsetPsd(layer,x,y){

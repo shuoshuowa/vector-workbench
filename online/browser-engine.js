@@ -34,7 +34,7 @@ async function action(a){
     case 'typeStyle':VectorTextStyle.commit(p,e,a.style);break;
     case 'paragraph':VectorParagraphs.store(e,a.frame);M.setText(e,{value:e.dataset.text??e.textContent});break;
     case 'geometry':M.geom(p,e,a);break;
-    case 'round':M.setCornerRadius(M.cornerAxes(p,e),a.r);break;
+    case 'round':M.setCornerRadius(M.cornerAxes(p,e),a.radii??a.r);break;
     case 'stroke':{const t=paintTarget(e),m=M.world(p,e);const width=a.width*M.PT/(Math.hypot(m.c,m.d)||1),ink=a.color||t.dataset.strokeInk||t.style.stroke||'#242735';if(VectorStroke.eligible(t)){VectorStroke.store(t,a.position||t.dataset.strokePosition||(getComputedStyle(t).stroke==='none'?'outside':'center'),ink,width,a.enabled);}else{t.style.stroke=a.enabled?ink:'none';t.style.strokeWidth=width+'px';}break;}
     case 'color':{const f=VectorEffects.read(e);if(f){e.dataset.solidFill=a.color;if(f.gradient)VectorEffects.commit(p,e,{...f,gradient:null});}}for(const t of [e,...e.querySelectorAll('tspan')])t.style.fill=a.enabled===false?'none':a.color;break;
     case 'duplicate':{e=shiftUnique(e);M.move(p,e,new DOMMatrix().translate(3,3));break;}
