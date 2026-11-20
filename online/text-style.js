@@ -20,7 +20,7 @@ const VectorTextStyle=(()=>{
     applyFrame(f,s,k);VectorParagraphs.store(e,f);
     for(const n of [e,...e.querySelectorAll('tspan')]){delete n.dataset.originalFont;delete n.dataset.editFamily;n.style.fill=s.fill;n.style.fontWeight=s.weight;n.style.fontStyle=s.style;}
     if(s.origin){e.dataset.originalFont=s.origin.name;if(s.origin.alias)e.dataset.editFamily=s.origin.alias;VectorFonts.include(page,s.origin);}
-    e.style.stroke=s.stroke?.enabled?s.stroke.color||'#000':'none';e.style.strokeWidth=((s.stroke?.width||1)*PT/k.y)+'px';
+    VectorStroke.store(e,s.stroke?.position||'center',s.stroke?.color||'#000',(s.stroke?.width||1)*PT/k.y,!!s.stroke?.enabled);
     M.setText(e,{value,font:s.font,pt:s.pt});
   }
   function selectedText(){return pickedItems().filter(o=>o.type==='text'&&o.paragraph&&!o.locked);}

@@ -11,7 +11,7 @@ function restore(s){pages=s.pages.map(M.parse);s.boards?.forEach((b,i)=>{if(page
 function history(){snapshots.splice(cursor+1);snapshots.push(snapshot());while(snapshots.length>2&&(snapshots.length>12||snapshots.length*snapshots.at(-1).pages.reduce((n,s)=>n+s.length,0)>100*1024*1024))snapshots.shift();cursor=snapshots.length-1;}
 function state(){const root=current();return {app:'vector-browser',psd:true,realtimeBatch:true,cloneBatch:true,layoutBatch:true,historyCache:true,svgScene:true,drawingTools:1,sample:"折序 F/01 · 两页说明书",version:rev,
   document:root?{name:filename,unit:root.dataset.boardUnit||'mm',effects:root.dataset.effects==='1',page:idx,pages:pages.length,width:root.viewBox.baseVal.width,height:root.viewBox.baseVal.height,items:structuredClone(items),selected:selected.length===1?selected[0]:null,selection:selected.slice(),preview,canUndo:cursor>0,canRedo:cursor<snapshots.length-1,edited:stamp!==saved,remapped:{...remapped}}:null};}
-function render(){const prev=preview;preview='';if(current()){VectorEffects.refresh(current());items=M.measure(current());const svg=M.xml(current());preview=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));}else items=[];
+function render(){const prev=preview;preview='';if(current()){VectorEffects.refresh(current());VectorStroke.refresh(current());items=M.measure(current());const svg=M.xml(current());preview=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));}else items=[];
   if(prev)setTimeout(()=>URL.revokeObjectURL(prev),30000);}
 let workspaceId=sessionStorage.getItem('vq-browser-project');if(!workspaceId){workspaceId=crypto.randomUUID();sessionStorage.setItem('vq-browser-project',workspaceId);}
 const database=new Promise(resolve=>{try{const r=indexedDB.open('vq-browser-workbench',1);r.onupgradeneeded=()=>r.result.createObjectStore('tabs');r.onsuccess=()=>resolve(r.result);r.onerror=()=>resolve(null);}catch{resolve(null);}});
@@ -35,7 +35,7 @@ async function action(a){
     case 'paragraph':VectorParagraphs.store(e,a.frame);M.setText(e,{value:e.dataset.text??e.textContent});break;
     case 'geometry':M.geom(p,e,a);break;
     case 'round':{const t=e.localName==='rect'?e:M.clipRect(p,e);if(t){const m=M.world(p,e);t.setAttribute('rx',Math.min(a.r/Math.hypot(m.a,m.b),t.width.baseVal.value/2,t.height.baseVal.value/2));}break;}
-    case 'stroke':{const t=paintTarget(e),m=M.world(p,e);t.style.stroke=a.enabled?(a.color||t.style.stroke||'#242735'):'none';t.style.strokeWidth=(a.width*M.PT/(Math.hypot(m.a,m.b)||1))+'px';break;}
+    case 'stroke':{const t=paintTarget(e),m=M.world(p,e);const width=a.width*M.PT/(Math.hypot(m.c,m.d)||1),ink=a.color||t.dataset.strokeInk||t.style.stroke||'#242735';if(VectorStroke.eligible(t)){VectorStroke.store(t,a.position||t.dataset.strokePosition||(getComputedStyle(t).stroke==='none'?'outside':'center'),ink,width,a.enabled);}else{t.style.stroke=a.enabled?ink:'none';t.style.strokeWidth=width+'px';}break;}
     case 'color':{const f=VectorEffects.read(e);if(f){e.dataset.solidFill=a.color;if(f.gradient)VectorEffects.commit(p,e,{...f,gradient:null});}}for(const t of [e,...e.querySelectorAll('tspan')])t.style.fill=a.enabled===false?'none':a.color;break;
     case 'duplicate':{e=shiftUnique(e);M.move(p,e,new DOMMatrix().translate(3,3));break;}
     case 'delete':e.remove();return [];
@@ -85,7 +85,7 @@ async function request(route,opts={}){
  if(cmd==='page'){if(!pages[a.page])throw Error('页面不存在。');idx=a.page;selected=[];}
  else if(cmd==='close'){pages=[];original=null;idx=0;filename='';selected=[];snapshots=[];cursor=0;files.clear();}
  else if(cmd==='open'||cmd==='blank'){const f=cmd==='open'&&a.sample?await bundledExample():files.get(a.asset),next=cmd==='open'?await F.open(f):[M.board(a.w,a.h,validBoardUnit(a.unit)?a.unit:'mm')];if(!next.length)throw Error('文件没有可用画板。');original=f&&/\.(pdf|ai)$/i.test(f.name)&&new TextDecoder().decode(await f.slice(0,1024).arrayBuffer()).includes('%PDF-')?f:null;
-    pages=next;Artboards.initialize(pages);pages.forEach((p,i)=>{delete p.dataset.layoutEdited;delete p.dataset.unitChanged;VectorEffects.refresh(p);if(original&&!p.rebuildPdfText)p.dataset.sourcePage=i;else delete p.dataset.sourcePage;});idx=0;filename=f?.name||'未命名画板';snapshots=[];cursor=0;stamp=saved=++serial;selected=[];history();files.clear();}
+    pages=next;Artboards.initialize(pages);pages.forEach((p,i)=>{delete p.dataset.layoutEdited;delete p.dataset.unitChanged;VectorEffects.refresh(p);VectorStroke.refresh(p);if(original&&!p.rebuildPdfText)p.dataset.sourcePage=i;else delete p.dataset.sourcePage;});idx=0;filename=f?.name||'未命名画板';snapshots=[];cursor=0;stamp=saved=++serial;selected=[];history();files.clear();}
  else if(cmd==='undo'||cmd==='redo'){const pos=cursor+(cmd==='undo'?-1:1);if(!snapshots[pos])throw Error('没有可用记录');cursor=pos;restore(snapshots[pos]);}
  else{const prior=snapshot(),sameSize=a.action?.kind==='pageSize'&&a.action.w===current().viewBox.baseVal.width&&a.action.h===current().viewBox.baseVal.height;remapped={};try{
    if(cmd==='act')selected=await action(a.action);
