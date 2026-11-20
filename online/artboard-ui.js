@@ -78,7 +78,7 @@
   field.onpointercancel=cancel;field.ondblclick=()=>{if(!drawing)close();};
   document.addEventListener('keydown',e=>{if(e.isComposing||e.target.closest('input,textarea,select,[contenteditable=true]')||document.querySelector('dialog[open]'))return;
     if(e.shiftKey&&e.key.toLowerCase()==='o'&&!e.ctrlKey&&!e.metaKey){e.preventDefault();e.stopImmediatePropagation();if(!working)(active?close:open)();return;}
-    if(!active)return;
+    if(!active||e.key==='F2')return;
     if(e.code==='Space'){space=true;e.preventDefault();}else if(e.key==='Escape'){cancel();if(drawing)setDrawing(false);else close();}else if(e.key==='Delete'){command('delete');}else if(e.key==='Enter'){close();}else if((e.ctrlKey||e.metaKey)&&e.key==='0'){e.preventDefault();fit();}
     else if((e.ctrlKey||e.metaKey)&&['z','s'].includes(e.key.toLowerCase()))return;
     e.stopImmediatePropagation();

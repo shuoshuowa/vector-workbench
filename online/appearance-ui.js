@@ -34,7 +34,7 @@
     const f={...o.effects},id=e.target.id;
     if(id==='fxBlend')f.blend=$('fxBlend').value;
     else if(id==='fxOpacity')f.opacity=$('fxOpacity').valueAsNumber/100;
-    else if(['fxGrad','fxFrom','fxTo','fxKind','fxAngle','fxFromAlpha','fxToAlpha'].includes(id))f.gradient=$('fxGrad').checked?{kind:$('fxKind').value,from:$('fxFrom').value,to:$('fxTo').value,fromAlpha:Number.isFinite($('fxFromAlpha').valueAsNumber)?$('fxFromAlpha').valueAsNumber/100:(f.gradient?.fromAlpha??1),toAlpha:Number.isFinite($('fxToAlpha').valueAsNumber)?$('fxToAlpha').valueAsNumber/100:(f.gradient?.toAlpha??1),angle:+$('fxAngle').value}:null;
+    else if(['fxGrad','fxFrom','fxTo','fxKind','fxAngle','fxFromAlpha','fxToAlpha'].includes(id))f.gradient=$('fxGrad').checked?{...f.gradient,kind:$('fxKind').value,from:$('fxFrom').value,to:$('fxTo').value,fromAlpha:Number.isFinite($('fxFromAlpha').valueAsNumber)?$('fxFromAlpha').valueAsNumber/100:(f.gradient?.fromAlpha??1),toAlpha:Number.isFinite($('fxToAlpha').valueAsNumber)?$('fxToAlpha').valueAsNumber/100:(f.gradient?.toAlpha??1),angle:+$('fxAngle').value}:null;
     else f.shadow=$('fxShadow').checked?shadowInput(f.shadow,id):null;
     sections();changeLocally([{kind:'appearance',id:o.id,fx:f}],o.id+'|'+id);
   });

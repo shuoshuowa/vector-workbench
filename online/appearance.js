@@ -23,11 +23,16 @@ const VectorEffects=(()=>{
     if(!fx){[el.style.opacity,el.style.mixBlendMode,el.style.filter,el.style.fill]=st.base;for(const [n,v] of st.styles)n.style.fill=v;st.defs?.remove();states.delete(el);return;}
     if(write)el.dataset.vqFx=JSON.stringify(fx);
     const svg=el.ownerSVGElement;if(!svg)return;const sc=scale(el),r=fx.shadow?bounds(el,fx.shadow,sc):null;
-    const signature=JSON.stringify([fx.gradient,fx.shadow,sc.x,sc.y,r]);
+    const signature=JSON.stringify([fx.gradient,fx.shadow,sc.x,sc.y,r,fx.gradient?.colors?Array.from(['x','y','width','height'],k=>el.getBBox()[k]):null]);
     if(st.signature!==signature||!st.defs?.isConnected){st.defs?.remove();const defs=M.make('defs',{'data-vq-appearance':el.dataset.vq||''});svg.prepend(defs);st.defs=defs;st.signature=signature;
       if(fx.gradient){const g=fx.gradient,radians=g.angle*Math.PI/180,dx=Math.cos(radians)*50,dy=Math.sin(radians)*50;
         const grad=g.kind==='radial'?M.make('radialGradient',{id:st.id+'g',cx:'50%',cy:'50%',r:'65%'}):M.make('linearGradient',{id:st.id+'g',x1:(50-dx)+'%',y1:(50-dy)+'%',x2:(50+dx)+'%',y2:(50+dy)+'%'});
-        grad.append(M.make('stop',{offset:0,'stop-color':g.from,'stop-opacity':g.fromAlpha??1}),M.make('stop',{offset:1,'stop-color':g.to,'stop-opacity':g.toAlpha??1}));defs.append(grad);}
+        if(g.colors){const b=el.getBBox(),cos=Math.cos(radians),sin=Math.sin(radians),cx=b.x+b.width*(.5+(g.offset?.x||0)),cy=b.y+b.height*(.5+(g.offset?.y||0));
+          const length=(Math.abs(b.width*sc.x*cos)+Math.abs(b.height*sc.y*sin))*(g.scale??1)/2;
+          grad.setAttribute('gradientUnits','userSpaceOnUse');const attrs=g.kind==='radial'?{cx,cy,r:Math.max(.0001,length/sc.x)}:{x1:cx-cos*length/sc.x,y1:cy-sin*length/sc.y,x2:cx+cos*length/sc.x,y2:cy+sin*length/sc.y};
+          for(const [k,v] of Object.entries(attrs))grad.setAttribute(k,v);}
+        if(g.svgGeometry?.kind===g.kind&&g.svgGeometry.angle===g.angle){for(const k of ['gradientUnits','x1','y1','x2','y2','cx','cy','r','fx','fy','fr'])grad.removeAttribute(k);for(const k of ['gradientUnits','gradientTransform','spreadMethod','x1','y1','x2','y2','cx','cy','r','fx','fy','fr'])if(g.svgGeometry.attrs?.[k]!=null)grad.setAttribute(k,g.svgGeometry.attrs[k]);}
+        grad.append(...VectorShapeFills.svgStops(g).map(stop=>M.make('stop',stop)));defs.append(grad);}
       if(fx.shadow){const s=fx.shadow,filter=M.make('filter',{id:st.id+'s',filterUnits:'userSpaceOnUse',...r,'color-interpolation-filters':'sRGB'});
         filter.append(M.make('feGaussianBlur',{in:'SourceAlpha',stdDeviation:(s.blur/sc.x)+' '+(s.blur/sc.y),result:'soft'}),M.make('feOffset',{in:'soft',dx:s.x/sc.x,dy:s.y/sc.y,result:'offset'}),M.make('feFlood',{'flood-color':s.color,'flood-opacity':s.alpha,result:'ink'}),M.make('feComposite',{in:'ink',in2:'offset',operator:'in',result:'shadow'}));
         const merge=M.make('feMerge');merge.append(M.make('feMergeNode',{in:'shadow'}),M.make('feMergeNode',{in:'SourceGraphic'}));filter.append(merge);defs.append(filter);}
@@ -61,23 +66,23 @@ const VectorEffects=(()=>{
   }
   const hex=c=>c&&'r' in c?'#'+[c.r,c.g,c.b].map(n=>Math.round(n).toString(16).padStart(2,'0')).join(''):'#000000';
   const rgb=h=>({r:parseInt(h.slice(1,3),16),g:parseInt(h.slice(3,5),16),b:parseInt(h.slice(5,7),16)});
-  function psdStyle(e,work,ppi){
+  function psdStyle(e,work,ppi,nativeFill=false){
     const f=read(e)||{},computed=getComputedStyle(e),stroke=!!(e.matches('rect,path,polygon,ellipse,circle,line,text,polyline,[data-raster-edge]')&&computed.stroke!=='none'&&parseFloat(computed.strokeWidth)>0);if(!stroke&&!Object.keys(f).length)return {};const n=work.querySelector('[data-vq="'+e.dataset.vq+'"]');if(!n)return {};
     const layer={opacity:f.opacity??1,blendMode:f.blend||'normal'},effects={scale:1},s=f.shadow,g=f.gradient,k=ppi/25.4;
     n.style.opacity='1';n.style.mixBlendMode='normal';n.style.filter='none';n.removeAttribute('filter');
     const raster=n.querySelector(':scope > [data-raster-gradient]');if(raster){raster.remove();const base=n.querySelector(':scope > image');if(base)base.style.opacity='1';}
     if(stroke){n.querySelector(':scope > [data-edge-pixels]')?.remove();const source=e.dataset.strokeInk||computed.stroke,color=/^#[0-9a-f]{6}$/i.test(source)?rgb(source):null;const c=computed.stroke.match(/[\d.]+/g)?.map(Number)||[0,0,0];effects.stroke=[{enabled:true,present:true,position:VectorStroke.pos(e),fillType:'color',blendMode:'normal',opacity:1,color:color||{r:c[0],g:c[1],b:c[2]},size:{units:'Pixels',value:(Number(e.dataset.edgeWidth)||parseFloat(computed.strokeWidth))*scale(e).y*k}}];for(const t of [n,...n.querySelectorAll('tspan')])t.style.stroke='none';}
-    if(g){if(raster||g.fromAlpha<1||g.toAlpha<1)layer.fillOpacity=raster?Number(e.dataset.baseOpacity??1):0;for(const t of [n,...n.querySelectorAll('tspan')])t.style.fill=e.dataset.solidFill||'#000000';
-      effects.gradientOverlay=[{enabled:true,present:true,blendMode:'normal',opacity:1,align:true,reverse:false,dither:false,offset:{x:0,y:0},type:g.kind,angle:-g.angle,scale:1,
-        gradient:{name:'Gradient',type:'solid',smoothness:1,colorStops:[g.from,g.to].map((v,i)=>({color:rgb(v),location:i,midpoint:.5})),opacityStops:[g.fromAlpha??1,g.toAlpha??1].map((opacity,location)=>({opacity,location,midpoint:.5}))}}];}
+    if(g&&!nativeFill){if(raster||g.fromAlpha<1||g.toAlpha<1)layer.fillOpacity=raster?Number(e.dataset.baseOpacity??1):0;for(const t of [n,...n.querySelectorAll('tspan')])t.style.fill=e.dataset.solidFill||'#000000';
+      effects.gradientOverlay=[{enabled:true,present:true,blendMode:'normal',opacity:1,align:true,reverse:false,dither:false,offset:{x:0,y:0},type:g.kind,angle:-g.angle,scale:g.scale??1,
+        gradient:VectorShapeFills.psdGradient(g)}];}
     if(s)effects.dropShadow=[{enabled:true,present:true,blendMode:'multiply',color:rgb(s.color),opacity:s.alpha,useGlobalLight:false,angle:shadowAngle(s),distance:{units:'Pixels',value:Math.hypot(s.x,s.y)*k},size:{units:'Pixels',value:s.blur*k},choke:{units:'Pixels',value:0},noise:0,antialiased:false,layerConceals:true,contour:{name:'Linear',curve:[{x:0,y:0},{x:255,y:255}]}}];
-    if(g||s||stroke)layer.effects=effects;return layer;
+    if(g&&!nativeFill||s||stroke)layer.effects=effects;return layer;
   }
   function fromPsd(l,mm){
     const f={},effects=l.effects?.disabled?null:l.effects,g=effects?.gradientOverlay?.find(v=>v.enabled!==false),s=effects?.dropShadow?.find(v=>v.enabled!==false);
     if(l.blendMode&&l.blendMode!=='normal'&&modes[l.blendMode])f.blend=l.blendMode;
     if(l.opacity!=null&&l.opacity!==1)f.opacity=l.opacity;
-    if(g?.gradient?.type==='solid'&&g.gradient.colorStops.length>=2){const stops=g.gradient.colorStops,alphas=g.gradient.opacityStops||[],a=g.reverse?-1:0,b=g.reverse?0:-1;f.gradient={kind:g.type==='radial'?'radial':'linear',angle:-(g.angle||0),from:hex(stops.at(a).color),to:hex(stops.at(b).color),fromAlpha:(alphas.at(a)?.opacity??1)*(g.opacity??1),toAlpha:(alphas.at(b)?.opacity??1)*(g.opacity??1)};}
+    if(g?.gradient?.type==='solid'){const gradient=VectorShapeFills.gradient(g.gradient,{...g,typeStyle:g.type});if(gradient)f.gradient=gradient;}
     if(s){const dist=(s.distance?.value||0)*mm;f.shadow={...shadowOffset(s.angle||0,dist),blur:(s.size?.value||0)*mm,color:hex(s.color),alpha:s.opacity??1};}
     return Object.keys(f).length?f:null;
   }

@@ -21,7 +21,7 @@ async function pdfPages(buffer,ai=false){
       const operators=await p.getOperatorList();if(operators.fnArray.some((op,j)=>op===pdfjsLib.OPS.setGState&&operators.argsArray[j][0]?.some?.(([key,val])=>key==='SMask'&&val||key==='BM'&&val!=='source-over')))root.dataset.effects='1';
       const svg=await renderer.getSVG(operators,vp),group=M.make('g',{transform:'scale('+PT+')'});
       group.append(...svg.childNodes);root.append(group);recordsByPage.push(sourceFonts);for(const [id,record] of sourceFonts){if(!allCodes.has(id))allCodes.set(id,new Map());for(const [cp,glyph] of record.codes)allCodes.get(id).set(cp,glyph);}for(const t of root.querySelectorAll('text')){const spans=[...t.querySelectorAll('tspan')];t.dataset.text=spans.map(n=>n.dataset.unicode??n.textContent).join('');if(!t.dataset.text.trim())t.remove();}pages.push(root);
-    }for(const [i,root] of pages.entries()){for(const [id,r] of recordsByPage[i])r.codes=allCodes.get(id);await VectorFonts.materialize(root,recordsByPage[i]);VectorParagraphs.prepare(root);M.classify(root);}
+    }for(const [i,root] of pages.entries()){for(const [id,r] of recordsByPage[i])r.codes=allCodes.get(id);await VectorFonts.materialize(root,recordsByPage[i]);VectorParagraphs.prepare(root);VectorShapeFills.importSvg(M.classify(root));}
     const labels=await pdf.getPageLabels();if(labels)pages.forEach((p,i)=>{if(labels[i])p.dataset.boardName=labels[i];});
     if(ai)try{await ArtboardFormats.readAI(buffer,pages,lib);}catch{/* PDF-compatible pages remain usable when native layout metadata is unavailable. */}
     return pages;
@@ -32,7 +32,7 @@ function svgPage(s,project=false){
   // Sanitize untrusted SVG before inserting it anywhere with access to the document.
   const embeddedFonts=[];
   for(const style of raw.querySelectorAll('style'))for(const m of style.textContent.matchAll(/@font-face\s*\{\s*font-family:\s*"([\w-]+)";\s*src:\s*url\((data:[\w/+.-]+;base64,[A-Za-z0-9+/=]+)\);?\s*\}/g))embeddedFonts.push('@font-face{font-family:"'+m[1]+'";src:url('+m[2]+');}');
-  const declarations=['fill','stroke','stroke-width','letter-spacing','font-size','font-family','font-weight','font-style','opacity','display','clip-path','fill-rule','stroke-linecap','stroke-linejoin','text-anchor'];
+  const declarations=['fill','stroke','stroke-width','letter-spacing','font-size','font-family','font-weight','font-style','opacity','display','clip-path','fill-rule','stroke-linecap','stroke-linejoin','text-anchor','stop-color','stop-opacity'];
   for(const el of raw.querySelectorAll('[style]'))for(const key of declarations){const value=el.style.getPropertyValue(key);if(value)el.setAttribute(key,value);}
   const safe=DOMPurify.sanitize(M.xml(raw),{USE_PROFILES:{svg:true,svgFilters:true},FORBID_TAGS:['style','a','use-external','foreignObject','animate','set','animateTransform','animateMotion','image-script'],FORBID_ATTR:['style'],ALLOW_DATA_ATTR:project,ADD_ATTR:['data-stroke-position','data-stroke-ink','data-edge-width','data-text-align','data-psd-point','data-paragraph-width','data-paragraph-height','data-paragraph-x','data-paragraph-y','data-line-advance','data-tracking','data-leading','data-text','data-unicode','data-original-font','data-edit-family','data-vq-fx','data-solid-fill'],ADD_DATA_URI_TAGS:['image']});
   const page=M.parse(safe);
@@ -46,13 +46,14 @@ function svgPage(s,project=false){
   const mm=(value,def)=>{const m=/^([\d.+-]+)(mm|cm|in|pt|px)?$/.exec(value||'');return m?Number(m[1])*({mm:1,cm:10,in:25.4,pt:PT,px:25.4/96}[m[2]||'px']):def;};
   const w=mm(page.getAttribute('width'),vb.width*25.4/96||210),h=mm(page.getAttribute('height'),vb.height*25.4/96||297);
   if(!(w>0&&h>0))throw Error('SVG 画板尺寸无效。');
-  const declared=page.getAttribute('width')?.match(/(mm|cm|in|pt|px)$/)?.[1];const root=M.board(w,h,declared||'mm'),g=M.make('g',{transform:'scale('+(w/(vb.width||w*96/25.4))+' '+(h/(vb.height||h*96/25.4))+') translate('+(-vb.x)+' '+(-vb.y)+')'});g.append(...page.childNodes);root.append(g);return M.classify(root);
+  const declared=page.getAttribute('width')?.match(/(mm|cm|in|pt|px)$/)?.[1];const root=M.board(w,h,declared||'mm'),g=M.make('g',{transform:'scale('+(w/(vb.width||w*96/25.4))+' '+(h/(vb.height||h*96/25.4))+') translate('+(-vb.x)+' '+(-vb.y)+')'});g.append(...page.childNodes);root.append(g);return VectorShapeFills.importSvg(M.classify(root));
 }
 async function psdPage(bytes){await lib('psd');const psd=agPsd.readPsd(bytes),resolution=psd.imageResources?.resolutionInfo?.horizontalResolution||72,mm=25.4/resolution;
   const unit=Math.abs(resolution-96)<.001?'px':'mm',ns='https://vector.zhangshuo.work/ns/artboards/1.0/';let ox=0,oy=0;
   if(psd.imageResources?.xmpMetadata){const xml=new DOMParser().parseFromString(psd.imageResources.xmpMetadata,'application/xml'),tag=xml.getElementsByTagNameNS('http://www.w3.org/1999/02/22-rdf-syntax-ns#','Description')[0];if(tag?.hasAttributeNS(ns,'originX')){const x=Number(tag.getAttributeNS(ns,'originX')),y=Number(tag.getAttributeNS(ns,'originY'));if(Number.isFinite(x)&&Number.isFinite(y)){ox=x;oy=y;}}}
   function layers(list,par){for(const l of list||[]){if(l.hidden)continue;let el;
     if(l.children){el=M.make('g',{'data-layer':l.name});layers(l.children,el);}
+    else if(l.vectorFill&&(el=VectorShapeFills.importLayer(l,resolution))){/* Editable Photoshop fill and Bézier mask. */}
     else if(l.text?.text&&(!l.text.styleRuns||l.text.styleRuns.length<=1)){
       const tx=l.text,st={...tx.style,...tx.styleRuns?.[0]?.style},para={...tx.paragraphStyle,...tx.paragraphStyleRuns?.[0]?.style},align=VectorParagraphs.alignment(para.justification),c=st.fillColor||{},size=st.fontSize||tx.style?.fontSize||16;
       const m=tx.transform||[1,0,0,1,l.left||0,(l.top||0)+size];
@@ -75,7 +76,7 @@ async function psdPage(bytes){await lib('psd');const psd=agPsd.readPsd(bytes),re
         if(width>0)VectorParagraphs.store(el,{x:x-width*VectorParagraphs.fraction(align),y,width,leading,advance,spacing,align});
       }
     }else if(l.canvas){el=M.mark(M.make('image',{x:l.left||0,y:l.top||0,width:l.canvas.width,height:l.canvas.height,href:l.canvas.toDataURL()}),'image',l.name);}
-    if(el){if(l.opacity!=null)el.setAttribute('opacity',l.opacity);const fx=VectorEffects.fromPsd(l,mm);if(fx?.gradient&&el.localName==='image')el=VectorEffects.rasterGradient(el,l.fillOpacity??1);const border=l.effects?.stroke?.find(s=>s.enabled!==false&&s.fillType==='color');if(border&&(el.localName==='text'||el.dataset.kind==='image')){if(el.dataset.kind==='image')el=VectorStroke.wrapBitmap(el);const c=border.color||{};const m=el.transform.baseVal.consolidate()?.matrix,scale=m?Math.hypot(m.c,m.d)||1:1;const ink='#'+[c.r,c.g,c.b].map(v=>Math.round(v||0).toString(16).padStart(2,'0')).join('');VectorStroke.store(el,border.position||'center',ink,(border.size?.value??1)/scale);}if(fx&&el.dataset.vq){el.dataset.vqFx=JSON.stringify(fx);el.dataset.solidFill=el.getAttribute('fill')||'#000000';}par.append(el);}
+    if(el){if(l.opacity!=null)el.setAttribute('opacity',l.opacity);const fx=VectorEffects.fromPsd(l,mm);if(fx?.gradient&&el.localName==='image')el=VectorEffects.rasterGradient(el,l.fillOpacity??1);const border=l.effects?.stroke?.find(s=>s.enabled!==false&&s.fillType==='color');if(border&&(el.localName==='text'||el.dataset.kind==='image')){if(el.dataset.kind==='image')el=VectorStroke.wrapBitmap(el);const c=border.color||{};const m=el.transform.baseVal.consolidate()?.matrix,scale=m?Math.hypot(m.c,m.d)||1:1;const ink='#'+[c.r,c.g,c.b].map(v=>Math.round(v||0).toString(16).padStart(2,'0')).join('');VectorStroke.store(el,border.position||'center',ink,(border.size?.value??1)/scale);}if(fx&&el.dataset.vq){el.dataset.vqFx=JSON.stringify({...VectorEffects.read(el),...fx});el.dataset.solidFill=el.dataset.solidFill||el.getAttribute('fill')||'#000000';}par.append(el);}
   }}
   function pageFor(list,r,name,board){
     const p=M.board((r.right-r.left)*mm,(r.bottom-r.top)*mm,unit),g=M.make('g',{transform:'scale('+mm+') translate('+(-r.left)+' '+(-r.top)+')'});p.append(g);layers(list,g);
@@ -93,7 +94,10 @@ async function psdPage(bytes){await lib('psd');const psd=agPsd.readPsd(bytes),re
   const p=pageFor(psd.children,whole);if(!M.drawables(p).length&&psd.canvas)p.lastElementChild.append(M.mark(M.make('image',{width:psd.width,height:psd.height,href:psd.canvas.toDataURL()}),'image'));return [p];
 }
 async function open(file){
-  const ext=file.name.split('.').pop().toLowerCase();if(ext==='svg'){await lib('purify');const root=svgPage(await file.text());await VectorFonts.hydrate(root);return [root];}
+  const ext=file.name.split('.').pop().toLowerCase();
+  if(['png','jpg','jpeg'].includes(ext)){const url=await dataURL(new Blob([file],{type:ext==='png'?'image/png':'image/jpeg'})),pic=await image(url),w=pic.naturalWidth*25.4/96,h=pic.naturalHeight*25.4/96;
+    const page=M.board(w,h,'px');page.dataset.boardName=file.name.replace(/\.[^.]+$/,'');page.append(M.mark(M.make('image',{x:0,y:0,width:w,height:h,href:url}),'image',file.name));return [page];}
+  if(ext==='vqproj'){await lib('purify');return VectorDelivery.openProject(file,svgPage);}if(ext==='svg'){await lib('purify');const root=svgPage(await file.text());await VectorFonts.hydrate(root);return [root];}
   const bytes=new Uint8Array(await file.arrayBuffer());if(ext==='psd')return psdPage(bytes);
   const signature=new TextDecoder().decode(bytes.subarray(0,1024));if(signature.includes('%PDF-'))return pdfPages(bytes,ext==='ai');
   if(ext==='eps'||signature.includes('%!PS'))return pdfPages(await postscript(bytes,'pdf'));
@@ -126,10 +130,10 @@ async function psdLayers(page,ppi){await lib('psd');M.mount(page);const vb=page.
   if(w*h>60e6||w>30000||h>30000)throw Error('该画板超出浏览器 PSD 导出的尺寸范围。');
   const children=[],items=M.drawables(page).filter(e=>!e.parentElement.closest('[data-vq]'));
   for(const e of items){const work=page.cloneNode(true);for(const n of M.drawables(work))if(n.dataset.vq!==e.dataset.vq&&!n.closest('[data-vq="'+e.dataset.vq+'"]')&&!n.querySelector('[data-vq="'+e.dataset.vq+'"]'))n.remove();
-    const style=VectorEffects.psdStyle(e,work,ppi);
+    const vector=VectorShapeFills.exportRect(page,e,ppi),style=VectorEffects.psdStyle(e,work,ppi,!!vector);
     const canvas=await canvasOf(work,w,h),b=M.box(page,e),x=Math.max(0,Math.floor(b.x*scale)-3),y=Math.max(0,Math.floor(b.y*scale)-3),right=Math.min(w,Math.ceil((b.x+b.w)*scale)+3),bottom=Math.min(h,Math.ceil((b.y+b.h)*scale)+3);if(right<=x||bottom<=y)continue;
     const crop=document.createElement('canvas');crop.width=right-x;crop.height=bottom-y;crop.getContext('2d').drawImage(canvas,-x,-y);canvas.width=1;
-    const layer={name:e.dataset.name||e.textContent.slice(0,35)||M.names[e.dataset.kind],left:x,top:y,canvas:crop,...style};
+    const layer={name:e.dataset.name||e.textContent.slice(0,35)||M.names[e.dataset.kind],left:x,top:y,canvas:crop,...style,...vector};
     if(e.dataset.kind==='text'){const s=getComputedStyle(e.querySelector('tspan')||e),matrix=M.world(page,e),size=parseFloat(s.fontSize)||12,pos=e.getNumberOfChars()?e.getStartPositionOfChar(0):new DOMPoint(0,0),pt=new DOMPoint(pos.x,pos.y).matrixTransform(matrix);
       const ink=e.dataset.solidFill||s.fill,hex=/^#([0-9a-f]{6})$/i.exec(ink),rgb=hex?[0,2,4].map(i=>parseInt(hex[1].slice(i,i+2),16)):(ink.match(/\d+/g)||[0,0,0]).map(Number);layer.text={text:e.dataset.text??e.textContent,transform:[matrix.a*scale,matrix.b*scale,matrix.c*scale,matrix.d*scale,pt.x*scale,pt.y*scale],style:{font:{name:e.dataset.originalFont||s.fontFamily.replace(/["']/g,'').split(',')[0]},fontSize:size,fillColor:{r:rgb[0],g:rgb[1],b:rgb[2]}}};}
     if(layer.text&&e.dataset.paragraphWidth){
@@ -153,7 +157,7 @@ async function psdOut(pages,all){
   const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;const ctx=canvas.getContext('2d'),groups=[];let imageResources;
   for(let i=pages.length-1;i>=0;i--){const page=pages[i];
     const d=await psdLayers(page,ppi),x=xs[i]-ox,y=ys[i]-oy;imageResources=d.imageResources;
-    for(const l of d.children){l.left+=x;l.top+=y;if(l.text){l.text.transform[4]+=x;l.text.transform[5]+=y;}}
+    for(const l of d.children){l.left+=x;l.top+=y;VectorShapeFills.offsetPsd(l,x,y);if(l.text){l.text.transform[4]+=x;l.text.transform[5]+=y;}}
     const backgroundType=+(page.dataset.psdBackground||1),color=JSON.parse(page.dataset.psdColor||'{"r":255,"g":255,"b":255}');
     if(backgroundType!==3){ctx.fillStyle=backgroundType===2?'black':backgroundType===4?'rgb('+[color.r||0,color.g||0,color.b||0].join(',')+')':'white';ctx.fillRect(x,y,d.width,d.height);}
     ctx.drawImage(d.canvas,x,y);groups.push({name:layout[i].name,opened:true,children:d.children,artboard:{rect:{left:x,top:y,right:x+d.width,bottom:y+d.height},backgroundType,color}});
@@ -178,5 +182,5 @@ async function preservedPdf(pages,original,forceNew=false,kitMarkers){
   return new Blob([await target.save()],{type:'application/pdf'});
 }
 async function output(pages,idx,fmt,original){if(fmt==='svg'){const svg=pages[idx].cloneNode(true),unit=validBoardUnit(svg.dataset.boardUnit)?svg.dataset.boardUnit:'mm';for(const key of ['width','height'])svg.setAttribute(key,Number((pages[idx].viewBox.baseVal[key]/boardUnits[unit]).toFixed(4))+unit);return new Blob([M.xml(svg)],{type:'image/svg+xml'});}if(fmt==='psd')return psdOut([pages[idx]],false);if(fmt==='psd-all')return psdOut(pages,true);if(fmt==='ai-kit')return ArtboardFormats.kit(pages,marks=>preservedPdf(pages,original,true,marks),lib);if(fmt==='eps')return new Blob([await postscript(await(await pdfOut([pages[idx]])).arrayBuffer(),'eps')],{type:'application/postscript'});if(fmt==='pdf')return preservedPdf(pages,original);throw Error('请选择有效的导出格式。');}
-window.VectorFormats={open,output,fonts,image,dataURL,loadFontReader:()=>lib('fontkit')};
+window.VectorFormats={open,output,canvasOf,loadLibrary:lib,fonts,image,dataURL,loadFontReader:()=>lib('fontkit')};
 })();

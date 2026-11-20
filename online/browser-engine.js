@@ -5,7 +5,7 @@ const svgCache=new WeakMap();
 let original=null,pages=[],idx=0,filename='',rev=0,serial=0,saved=0,stamp=0,preview='',selected=[],items=[],snapshots=[],cursor=0,download='',remapped={};
 const current=()=>pages[idx],mapId=k=>remapped[k]||k;
 const previewIds=new WeakMap();let nextPreviewId=0;
-function boardList(){return Artboards.list(pages).map(b=>{const p=pages[b.index];if(!previewIds.has(p))previewIds.set(p,++nextPreviewId);return {...b,token:previewIds.get(p)};});}
+function boardList(){return Artboards.list(pages).map(b=>{const p=pages[b.index];if(!previewIds.has(p))previewIds.set(p,++nextPreviewId);return {...b,ppi:+p.dataset.psdResolution||96,token:previewIds.get(p)};});}
 const snapshot=()=>({boards:Artboards.list(pages).map((b,i)=>({...b,edited:pages[i].dataset.layoutEdited==='1'})),pages:pages.map(p=>{if(!svgCache.has(p))svgCache.set(p,M.xml(p));return svgCache.get(p);}),idx,filename,stamp});
 function restore(s){pages=s.pages.map(M.parse);s.boards?.forEach((b,i)=>{if(pages[i]){Artboards.set(pages[i],b);if(b.edited)pages[i].dataset.layoutEdited='1';else delete pages[i].dataset.layoutEdited;}});Artboards.initialize(pages);idx=s.idx;filename=s.filename;stamp=s.stamp;M.resumeSerial(pages);selected=[];}
 function history(){snapshots.splice(cursor+1);snapshots.push(snapshot());while(snapshots.length>2&&(snapshots.length>12||snapshots.length*snapshots.at(-1).pages.reduce((n,s)=>n+s.length,0)>100*1024*1024))snapshots.shift();cursor=snapshots.length-1;}
@@ -31,6 +31,7 @@ async function action(a){
     case 'addText':e=M.mark(M.make('text',{x:0,y:0,transform:'translate('+v.width*.35+' '+v.height*.45+')','font-size':16*M.PT,'font-family':'sans-serif',fill:'#000000'}),'text');e.textContent='新增文字';p.append(e);VectorParagraphs.store(e,{x:0,y:0,width:40,leading:1.2});break;
     case 'text':M.setText(e,a);break;
     case 'appearance':VectorEffects.commit(p,e,a.fx);break;
+    case 'retouch':{const file=files.get(a.asset);if(file?.type!=='image/png')throw Error('修补图片不可用。');PhotoSource.replace(p,e,await F.dataURL(file));break;}
     case 'typeStyle':VectorTextStyle.commit(p,e,a.style);break;
     case 'paragraph':VectorParagraphs.store(e,a.frame);M.setText(e,{value:e.dataset.text??e.textContent});break;
     case 'geometry':M.geom(p,e,a);break;
@@ -73,8 +74,8 @@ async function request(route,opts={}){
  if(cmd==='fonts')return F.fonts();
  if(cmd==='upload'){const asset=crypto.randomUUID();files.set(asset,opts.body);return {asset};}
  const a=JSON.parse(opts.body||'{}');if(a.version!==rev)throw Error('画板已更新，请重试。');
- if(cmd==='export'){const result=await F.output(pages,idx,a.format,original);if(download)URL.revokeObjectURL(download);download=URL.createObjectURL(result);if(a.format==='pdf')saved=stamp;
-   rev++;persist();const multi=['pdf','psd-all','ai-kit'].includes(a.format),ext=({'psd-all':'psd','ai-kit':'zip'})[a.format]||a.format;const filenameOut=filename.replace(/\.[^.]+$/,'')+'-编辑版'+(multi?'':'-第'+(idx+1)+'页')+'.'+ext;return {...state(),download,downloadName:filenameOut};}
+ if(cmd==='export'){const delivery=a.range?await VectorDelivery.output(pages,idx,filename,{...a,original}):null;const result=delivery?delivery.blob:await F.output(pages,idx,a.format,original);if(download)URL.revokeObjectURL(download);download=URL.createObjectURL(result);if(['pdf','vqproj'].includes(a.format)&&(!a.range||a.range==='all'||(a.range==='current'&&pages.length===1)))saved=stamp;
+   rev++;persist();const multi=['pdf','psd-all','ai-kit'].includes(a.format),ext=({'psd-all':'psd','ai-kit':'zip'})[a.format]||a.format;const filenameOut=filename.replace(/\.[^.]+$/,'')+'-编辑版'+(multi?'':'-第'+(idx+1)+'页')+'.'+ext;return {...state(),download,downloadName:delivery?.name||filenameOut};}
  if(cmd==='boards'){
    const prior=snapshot(),old=current(),edited=pages[a.index??idx],size=edited?.getAttribute('viewBox');
    try{idx=Artboards.modify(pages,idx,a);current().dataset.layoutEdited='1';selected=[];stamp=++serial;
@@ -85,7 +86,7 @@ async function request(route,opts={}){
  if(cmd==='page'){if(!pages[a.page])throw Error('页面不存在。');idx=a.page;selected=[];}
  else if(cmd==='close'){pages=[];original=null;idx=0;filename='';selected=[];snapshots=[];cursor=0;files.clear();}
  else if(cmd==='open'||cmd==='blank'){const f=cmd==='open'&&a.sample?await bundledExample():files.get(a.asset),next=cmd==='open'?await F.open(f):[M.board(a.w,a.h,validBoardUnit(a.unit)?a.unit:'mm')];if(!next.length)throw Error('文件没有可用画板。');original=f&&/\.(pdf|ai)$/i.test(f.name)&&new TextDecoder().decode(await f.slice(0,1024).arrayBuffer()).includes('%PDF-')?f:null;
-    pages=next;Artboards.initialize(pages);pages.forEach((p,i)=>{delete p.dataset.layoutEdited;delete p.dataset.unitChanged;VectorEffects.refresh(p);VectorStroke.refresh(p);if(original&&!p.rebuildPdfText)p.dataset.sourcePage=i;else delete p.dataset.sourcePage;});idx=0;filename=f?.name||'未命名画板';snapshots=[];cursor=0;stamp=saved=++serial;selected=[];history();files.clear();}
+    pages=next;Artboards.initialize(pages);pages.forEach((p,i)=>{delete p.dataset.layoutEdited;delete p.dataset.unitChanged;VectorEffects.refresh(p);VectorStroke.refresh(p);if(original&&!p.rebuildPdfText)p.dataset.sourcePage=i;else delete p.dataset.sourcePage;});idx=next.active||0;filename=f?.name||'未命名画板';snapshots=[];cursor=0;stamp=saved=++serial;selected=f&&/\.(png|jpe?g)$/i.test(f.name)?M.drawables(current()).slice(0,1).map(M.id):[];history();files.clear();}
  else if(cmd==='undo'||cmd==='redo'){const pos=cursor+(cmd==='undo'?-1:1);if(!snapshots[pos])throw Error('没有可用记录');cursor=pos;restore(snapshots[pos]);}
  else{const prior=snapshot(),sameSize=a.action?.kind==='pageSize'&&a.action.w===current().viewBox.baseVal.width&&a.action.h===current().viewBox.baseVal.height;remapped={};try{
    if(cmd==='act')selected=await action(a.action);
@@ -97,5 +98,5 @@ async function request(route,opts={}){
  if(['open','blank','close'].includes(cmd))VectorFonts.retain(pages);
  rev++;render();persist();return state();
 }
-window.VectorBrowser={request,artboards:boardList,artPreview:i=>new Blob([svgCache.get(pages[i])||M.xml(pages[i])],{type:'image/svg+xml'}),scene:()=>M.scene(current()),sourceHits:(...point)=>M.sourceHits(current(),...point)};
+window.VectorBrowser={request,photoSource:id=>current()?PhotoSource.source(current(),M.find(current(),id)):null,artboards:boardList,artPreview:i=>new Blob([svgCache.get(pages[i])||M.xml(pages[i])],{type:'image/svg+xml'}),scene:()=>M.scene(current()),sourceHits:(...point)=>M.sourceHits(current(),...point)};
 })();
