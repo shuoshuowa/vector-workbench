@@ -31,7 +31,7 @@ const VectorShapeFills=(()=>{
   const cornerNames=['topLeft','topRight','bottomRight','bottomLeft'];
   function importLayer(layer,ppi){
     const fill=layer.vectorFill,mask=layer.vectorMask,paths=mask?.paths,desc=layer.vectorOrigination?.keyDescriptorList?.[0];
-    if(!fill||!paths?.length||mask.disable||mask.invert||mask.fillStartsWithAllPixels||layer.mask||layer.clipping||paths.some(p=>p.open||p.operation&&p.operation!=='combine'||!p.knots?.length))return null;
+    if(!fill||!paths?.length||mask.disable||mask.invert||mask.fillStartsWithAllPixels||layer.mask||paths.some(p=>p.open||p.operation&&p.operation!=='combine'||!p.knots?.length))return null;
     if(fill.align===false||layer.effects?.gradientOverlay?.some(g=>g.enabled!==false))return null;
     const grad=gradient(fill),ink=grad?.from||hex(fill.color);if(!ink||!grad&&fill.type!=='color')return null;
     let x=Infinity,y=Infinity,right=-Infinity,bottom=-Infinity;for(const path of paths)for(const knot of path.knots){const [, ,px,py]=knot.points;x=Math.min(x,px);y=Math.min(y,py);right=Math.max(right,px);bottom=Math.max(bottom,py);}

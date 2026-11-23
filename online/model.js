@@ -130,7 +130,7 @@ function clone(e){const c=e.cloneNode(true),all=[c,...c.querySelectorAll('*')],i
 function classify(root){
   mount(root);
   for(const g of [...root.querySelectorAll('g[clip-path]')].reverse()){
-    if(g.closest('defs,clipPath,mask')||g.querySelector('[data-kind="mask"]'))continue;
+    if(g.hasAttribute('data-psd-clipped')||g.closest('defs,clipPath,mask')||g.querySelector('[data-kind="mask"]'))continue;
     const pictures=g.querySelectorAll('image');
     if(pictures.length!==1||g.querySelector('text,path,rect,circle,ellipse,polygon,line'))continue;
     const match=/^url\(#([^)]+)\)$/.exec(g.getAttribute('clip-path')),clip=match&&root.getElementById(match[1]);
@@ -143,7 +143,11 @@ function classify(root){
   }
   for(const e of root.querySelectorAll('path,rect,ellipse,circle,line,polygon,polyline,text,image,use'))if(!e.closest('defs,clipPath,mask,pattern,marker,[data-kind="mask"]')&&!e.dataset.vq)mark(e,e.matches(cornerSelector)?'rect':({text:'text',image:'image'})[e.localName]||'shape',e.getAttribute('aria-label'));return root;}
 function scene(page){const copy=page.cloneNode(true);
-  for(const e of drawables(copy)){const name='VQNodeL0I'+e.dataset.vq;if(!e.id)e.id=name;else {const g=make('g',{id:name});e.replaceWith(g);g.append(e);}}
+  for(const e of drawables(copy)){const name='VQNodeL0I'+e.dataset.vq;if(!e.id)e.id=name;
+    else if(e.parentElement.hasAttribute('data-psd-base')){
+      for(const use of e.closest('[data-psd-clip-stack]').querySelectorAll('use'))if(use.getAttribute('href')==='#'+e.id)use.setAttribute('href','#'+name);
+      e.id=name;
+    }else {const g=make('g',{id:name});e.replaceWith(g);g.append(e);}}
   return xml(copy);}
 function fitPhoto(page,e,b){const s=box(page,e),ratio=Math.max(b.w/s.w,b.h/s.h);geom(page,e,{x:b.x+(b.w-s.w*ratio)/2,y:b.y+(b.h-s.h*ratio)/2,w:s.w*ratio,h:s.h*ratio});}
 function clipRect(page,e){return e.dataset.clip?page.getElementById(e.dataset.clip)?.querySelector(cornerSelector):null;}

@@ -34,7 +34,7 @@ function svgPage(s,project=false){
   for(const style of raw.querySelectorAll('style'))for(const m of style.textContent.matchAll(/@font-face\s*\{\s*font-family:\s*"([\w-]+)";\s*src:\s*url\((data:[\w/+.-]+;base64,[A-Za-z0-9+/=]+)\);?\s*\}/g))embeddedFonts.push('@font-face{font-family:"'+m[1]+'";src:url('+m[2]+');}');
   const declarations=['fill','stroke','stroke-width','letter-spacing','font-size','font-family','font-weight','font-style','opacity','display','clip-path','fill-rule','stroke-linecap','stroke-linejoin','text-anchor','stop-color','stop-opacity'];
   for(const el of raw.querySelectorAll('[style]'))for(const key of declarations){const value=el.style.getPropertyValue(key);if(value)el.setAttribute(key,value);}
-  const safe=DOMPurify.sanitize(M.xml(raw),{USE_PROFILES:{svg:true,svgFilters:true},FORBID_TAGS:['style','a','use-external','foreignObject','animate','set','animateTransform','animateMotion','image-script'],FORBID_ATTR:['style'],ALLOW_DATA_ATTR:project,ADD_ATTR:['data-corner-radii','data-stroke-position','data-stroke-ink','data-edge-width','data-text-align','data-psd-point','data-paragraph-width','data-paragraph-height','data-paragraph-x','data-paragraph-y','data-line-advance','data-tracking','data-leading','data-text','data-unicode','data-original-font','data-edit-family','data-vq-fx','data-solid-fill'],ADD_DATA_URI_TAGS:['image']});
+  const safe=DOMPurify.sanitize(M.xml(raw),{USE_PROFILES:{svg:true,svgFilters:true},FORBID_TAGS:['style','a','use-external','foreignObject','animate','set','animateTransform','animateMotion','image-script'],FORBID_ATTR:['style'],ALLOW_DATA_ATTR:project,ADD_ATTR:['data-psd-clip-stack','data-psd-clipped','data-psd-base','data-psd-paint','data-psd-alpha','data-corner-radii','data-stroke-position','data-stroke-ink','data-edge-width','data-text-align','data-psd-point','data-paragraph-width','data-paragraph-height','data-paragraph-x','data-paragraph-y','data-line-advance','data-tracking','data-leading','data-text','data-unicode','data-original-font','data-edit-family','data-vq-fx','data-solid-fill'],ADD_DATA_URI_TAGS:['image']});
   const page=M.parse(safe);
   for(const el of [page,...page.querySelectorAll('*')])for(const a of [...el.attributes]){
     if(a.localName==='href'&&!a.value.startsWith('#')&&!/^data:image\/(png|jpeg|webp|gif);base64,/i.test(a.value))el.removeAttributeNode(a);
@@ -48,10 +48,46 @@ function svgPage(s,project=false){
   if(!(w>0&&h>0))throw Error('SVG 画板尺寸无效。');
   const declared=page.getAttribute('width')?.match(/(mm|cm|in|pt|px)$/)?.[1];const root=M.board(w,h,declared||'px'),g=M.make('g',{transform:'scale('+(w/(vb.width||w*96/25.4))+' '+(h/(vb.height||h*96/25.4))+') translate('+(-vb.x)+' '+(-vb.y)+')'});g.append(...page.childNodes);root.append(g);return VectorShapeFills.importSvg(M.classify(root));
 }
-async function psdPage(bytes){await lib('psd');const psd=agPsd.readPsd(bytes),resolution=psd.imageResources?.resolutionInfo?.horizontalResolution||72,mm=25.4/resolution;
+async function psdPage(bytes){await lib('psd');const psd=agPsd.readPsd(bytes,{skipLinkedFilesData:true,skipThumbnail:true}),resolution=psd.imageResources?.resolutionInfo?.horizontalResolution||72,mm=25.4/resolution;
   const preferred=boardPreference('vq-board-unit','px'),unit=validBoardUnit(preferred)?preferred:'px',ns='https://vector.zhangshuo.work/ns/artboards/1.0/';let ox=0,oy=0;
   if(psd.imageResources?.xmpMetadata){const xml=new DOMParser().parseFromString(psd.imageResources.xmpMetadata,'application/xml'),tag=xml.getElementsByTagNameNS('http://www.w3.org/1999/02/22-rdf-syntax-ns#','Description')[0];if(tag?.hasAttributeNS(ns,'originX')){const x=Number(tag.getAttributeNS(ns,'originX')),y=Number(tag.getAttributeNS(ns,'originY'));if(Number.isFinite(x)&&Number.isFinite(y)){ox=x;oy=y;}}}
-  function layers(list,par){for(const l of list||[]){if(l.hidden)continue;let el;
+  function layers(list,par){
+    // ag-psd lists siblings from bottom to top. Even a hidden base ends the previous chain.
+    for(let i=0;i<(list?.length||0);){
+      const base=list[i++],start=i;
+      while(i<list.length&&list[i].clipping)i++;
+      if(base.hidden||base.clipping)continue;
+      const el=layerNode(base);if(!el)continue;
+      const members=list.slice(start,i).filter(l=>!l.hidden).map(layerNode).filter(Boolean);
+      if(!members.length){par.append(el);continue;}
+      const stack=M.make('g',{'data-psd-clip-stack':'1'}),defs=M.make('defs');
+      if(!el.dataset.vq)M.mark(el,'group',base.name);
+      // Layer opacity applies to the composited clipping group.
+      if(el.hasAttribute('opacity')){stack.setAttribute('opacity',el.getAttribute('opacity'));el.removeAttribute('opacity');}
+      el.id ||= 'psdBase'+crypto.randomUUID();
+      const geometry=el.matches('rect,path,circle,ellipse,polygon')&&!el.hasAttribute('mask')&&!el.dataset.rasterGradient&&
+        !base.vectorFill?.opacityStops?.some(stop=>stop.opacity<1);
+      const id='psdClip'+crypto.randomUUID(),ref=M.make('use',{href:'#'+el.id});
+      const rule=geometry?M.make('clipPath',{id,clipPathUnits:'userSpaceOnUse'}):M.make('mask',{id,'mask-type':'alpha','data-psd-alpha':'1'});
+      const paint=M.make('g',{'data-psd-paint':'1'}),baseWrap=M.make('g',{'data-psd-base':'1'});
+      rule.append(ref);defs.append(rule);stack.append(defs,paint);paint.append(baseWrap);baseWrap.append(el);
+      if(!geometry){
+        // Composite all clipped layers first, then apply the base alpha exactly once.
+        paint.setAttribute('mask','url(#'+id+')');
+        const filter=M.make('filter',{id:id+'Opaque'}),transfer=M.make('feComponentTransfer');
+        transfer.append(M.make('feFuncA',{type:'linear',slope:0,intercept:1}));filter.append(transfer);defs.append(filter);
+        baseWrap.setAttribute('filter','url(#'+filter.id+')');
+      }
+      for(const member of members){
+        if(!member.dataset.vq)M.mark(member,'group',member.dataset.layer);
+        const wrap=M.make('g',{'data-psd-clipped':'1'});
+        if(geometry)wrap.setAttribute('clip-path','url(#'+id+')');
+        wrap.append(member);paint.append(wrap);
+      }
+      par.append(stack);
+    }
+  }
+  function layerNode(l){let el;
     if(l.children){el=M.make('g',{'data-layer':l.name});layers(l.children,el);}
     else if(l.vectorFill&&(el=VectorShapeFills.importLayer(l,resolution))){/* Editable Photoshop fill and Bézier mask. */}
     else if(l.text?.text&&(!l.text.styleRuns||l.text.styleRuns.length<=1)){
@@ -76,8 +112,9 @@ async function psdPage(bytes){await lib('psd');const psd=agPsd.readPsd(bytes),re
         if(width>0)VectorParagraphs.store(el,{x:x-width*VectorParagraphs.fraction(align),y,width,leading,advance,spacing,align});
       }
     }else if(l.canvas){el=M.mark(M.make('image',{x:l.left||0,y:l.top||0,width:l.canvas.width,height:l.canvas.height,href:l.canvas.toDataURL()}),'image',l.name);}
-    if(el){if(l.opacity!=null)el.setAttribute('opacity',l.opacity);const fx=VectorEffects.fromPsd(l,mm);if(fx?.gradient&&el.localName==='image')el=VectorEffects.rasterGradient(el,l.fillOpacity??1);const border=l.effects?.stroke?.find(s=>s.enabled!==false&&s.fillType==='color');if(border&&(el.localName==='text'||el.dataset.kind==='image')){if(el.dataset.kind==='image')el=VectorStroke.wrapBitmap(el);const c=border.color||{};const m=el.transform.baseVal.consolidate()?.matrix,scale=m?Math.hypot(m.c,m.d)||1:1;const ink='#'+[c.r,c.g,c.b].map(v=>Math.round(v||0).toString(16).padStart(2,'0')).join('');VectorStroke.store(el,border.position||'center',ink,(border.size?.value??1)/scale);}if(fx&&el.dataset.vq){el.dataset.vqFx=JSON.stringify({...VectorEffects.read(el),...fx});el.dataset.solidFill=el.dataset.solidFill||el.getAttribute('fill')||'#000000';}par.append(el);}
-  }}
+    if(el){if(l.opacity!=null)el.setAttribute('opacity',l.opacity);const fx=VectorEffects.fromPsd(l,mm);if(fx?.gradient&&el.localName==='image')el=VectorEffects.rasterGradient(el,l.fillOpacity??1);const border=l.effects?.stroke?.find(s=>s.enabled!==false&&s.fillType==='color');if(border&&(el.localName==='text'||el.dataset.kind==='image')){if(el.dataset.kind==='image')el=VectorStroke.wrapBitmap(el);const c=border.color||{};const m=el.transform.baseVal.consolidate()?.matrix,scale=m?Math.hypot(m.c,m.d)||1:1;const ink='#'+[c.r,c.g,c.b].map(v=>Math.round(v||0).toString(16).padStart(2,'0')).join('');VectorStroke.store(el,border.position||'center',ink,(border.size?.value??1)/scale);}if(fx&&el.dataset.vq){el.dataset.vqFx=JSON.stringify({...VectorEffects.read(el),...fx});el.dataset.solidFill=el.dataset.solidFill||el.getAttribute('fill')||'#000000';}}
+    return el;
+  }
   function pageFor(list,r,name,board){
     const p=M.board((r.right-r.left)*mm,(r.bottom-r.top)*mm,unit),g=M.make('g',{transform:'scale('+mm+') translate('+(-r.left)+' '+(-r.top)+')'});p.append(g);layers(list,g);
     for(const el of p.querySelectorAll('text[data-original-font]'))VectorFonts.include(p,{name:el.dataset.originalFont});
@@ -87,10 +124,10 @@ async function psdPage(bytes){await lib('psd');const psd=agPsd.readPsd(bytes),re
   }
   const art=[],extra=[];
   function collect(list){for(const layer of list||[]){if(layer.artboard?.rect){const r=layer.artboard.rect;if(r.right>r.left&&r.bottom>r.top)art.push(pageFor(layer.children,r,layer.name||'画板 '+(art.length+1),layer.artboard));}
-    else if(layer.children?.some(function contains(c){return !!c.artboard||c.children?.some(contains);} ))collect(layer.children);else if(!layer.hidden)extra.push(layer);}}
+    else if(layer.children?.some(function contains(c){return !!c.artboard||c.children?.some(contains);} ))collect(layer.children);else extra.push(layer);}}
   collect(psd.children);art.reverse();
   const whole={left:0,top:0,right:psd.width,bottom:psd.height};
-  if(art.length){if(extra.length)art.push(pageFor(extra,whole,'画板外图层'));return art;}
+  if(art.length){if(extra.some(layer=>!layer.hidden&&!layer.clipping))art.push(pageFor(extra,whole,'画板外图层'));return art;}
   const p=pageFor(psd.children,whole);if(!M.drawables(p).length&&psd.canvas)p.lastElementChild.append(M.mark(M.make('image',{width:psd.width,height:psd.height,href:psd.canvas.toDataURL()}),'image'));return [p];
 }
 async function open(file){
@@ -107,6 +144,26 @@ let defaultFont,localFonts=[];
 async function fonts(){if(window.queryLocalFonts)try{localFonts=await queryLocalFonts();VectorFonts.rememberLocal(localFonts);}catch{}
   return localFonts.length?localFonts.map(f=>({id:f.postscriptName,label:f.fullName,family:f.family,style:f.style})):
     ['Arial','Georgia','Times New Roman','Microsoft YaHei','SimSun','sans-serif','serif'].map(f=>({id:f,label:f,family:f,style:'常规'}));}
+async function pdfAlphaStacks(root,copy){
+  const groups=[...root.querySelectorAll('[data-psd-clip-stack]')];
+  if(!groups.length)return;
+  M.mount(root);
+  for(const group of groups){
+    const mask=group.querySelector(':scope > defs > mask[data-psd-alpha]');if(!mask)continue;
+    const dest=copy.getElementById(mask.id)?.closest('[data-psd-clip-stack]');if(!dest)continue;
+    const paint=group.querySelector(':scope > [data-psd-paint]'),b=(paint.querySelector(':scope > [data-psd-base]')||paint).getBBox();
+    if(!(b.width>0&&b.height>0)){dest.remove();continue;}
+    const m=M.world(root,group),scale=(+root.dataset.psdResolution||144)/25.4;
+    const width=Math.max(1,b.width*Math.hypot(m.a,m.b)*scale),height=Math.max(1,b.height*Math.hypot(m.c,m.d)*scale);
+    const factor=Math.min(1,Math.sqrt(16e6/(width*height)),16384/Math.max(width,height));
+    const attrs={x:b.x,y:b.y,width:b.width,height:b.height},svg=M.make('svg',{width:b.width,height:b.height,viewBox:[b.x,b.y,b.width,b.height].join(' ')});
+    for(const def of root.querySelectorAll('defs,style'))if(!group.contains(def)&&!def.parentElement?.closest('defs'))svg.append(def.cloneNode(true));
+    const content=group.cloneNode(true);content.removeAttribute('transform');svg.append(content);
+    const canvas=await canvasOf(svg,Math.max(1,Math.round(width*factor)),Math.max(1,Math.round(height*factor)));
+    dest.replaceWith(M.make('image',{...attrs,transform:group.getAttribute('transform'),preserveAspectRatio:'none',href:canvas.toDataURL()}));
+    canvas.width=1;
+  }
+}
 async function pdfOut(pages,withProject=true,kitMarkers){
   if(!localFonts.length&&window.queryLocalFonts)try{if((await navigator.permissions.query({name:'local-fonts'})).state==='granted')await fonts();}catch{}
   await Promise.all([lib('pdfkit'),lib('svg-to-pdf')]);defaultFont ||= fetch('/lib/fallback.ttf').then(r=>{if(!r.ok)throw Error('中文字体加载失败。');return r.arrayBuffer();});
@@ -121,7 +178,7 @@ async function pdfOut(pages,withProject=true,kitMarkers){
     await VectorFonts.exportRuns(copy,doc,registered,styles);
     for(const span of copy.querySelectorAll('tspan[data-unicode]'))if(span.dataset.unicode!==span.textContent){span.textContent=span.dataset.unicode;span.setAttribute('font-family','sans-serif');span.style.fontFamily='sans-serif';}
     for(const e of copy.querySelectorAll('text,tspan')){const family=(e.style.fontFamily||e.getAttribute('font-family')||'').replace(/["']/g,'');const local=localFonts.find(f=>f.postscriptName===family||f.family===family);if(local&&!registered.has(family))try{doc.registerFont(family,await(await local.blob()).arrayBuffer());doc.font(family);registered.add(family);}catch{}}
-    await VectorStroke.pdf(root,copy,canvasOf);
+    await VectorStroke.pdf(root,copy,canvasOf);await pdfAlphaStacks(root,copy);
     SVGtoPDF(doc,M.xml(copy),0,0,{width:w,height:h,assumePt:true,fontCallback:(name,bold,italic,options)=>{const f=name?.replace(/["']/g,'');const cut=styles.get(f);options.fauxBold=bold&&(cut?.weight??400)<600;options.fauxItalic=italic&&cut?.italic!=='italic';return registered.has(f)?f:'VQDefault';},warningCallback:()=>{}});
   }if(withProject){const sourceBytes=new TextEncoder().encode(JSON.stringify({version:1,pdfTextVersion:2,pages:pages.map(M.xml)}));doc.file(sourceBytes.buffer,{name:'vector-workbench.json',type:'application/json',description:'可编辑画板'});}doc.end();return done;
 }
@@ -129,7 +186,17 @@ async function canvasOf(page,w,h){const url=URL.createObjectURL(new Blob([M.xml(
 async function psdLayers(page,ppi){await lib('psd');M.mount(page);const vb=Artboards.viewBox(page),scale=ppi/25.4,w=Math.max(1,Math.round(vb.width*scale)),h=Math.max(1,Math.round(vb.height*scale));
   if(w*h>60e6||w>30000||h>30000)throw Error('该画板超出浏览器 PSD 导出的尺寸范围。');
   const children=[],items=M.drawables(page).filter(e=>!e.parentElement.closest('[data-vq]'));
-  for(const e of items){const work=page.cloneNode(true);for(const n of M.drawables(work))if(n.dataset.vq!==e.dataset.vq&&!n.closest('[data-vq="'+e.dataset.vq+'"]')&&!n.querySelector('[data-vq="'+e.dataset.vq+'"]'))n.remove();
+  let lastStack=null;
+  for(const e of items){
+    const wrap=e.parentElement,clipped=wrap.hasAttribute('data-psd-clipped');
+    const stack=clipped||wrap.hasAttribute('data-psd-base')?wrap.closest('[data-psd-clip-stack]'):null;
+    const nativeClip=!!stack&&clipped&&stack===lastStack,work=page.cloneNode(true);
+    if(stack&&(!clipped||nativeClip)){
+      const raw=M.find(work,M.id(e)).parentElement;
+      raw.removeAttribute('clip-path');raw.removeAttribute('filter');
+      raw.parentElement.removeAttribute('mask');raw.closest('[data-psd-clip-stack]').removeAttribute('opacity');
+    }
+    for(const n of M.drawables(work))if(n.dataset.vq!==e.dataset.vq&&!n.closest('[data-vq="'+e.dataset.vq+'"]')&&!n.querySelector('[data-vq="'+e.dataset.vq+'"]'))n.remove();
     const vector=VectorShapeFills.exportRect(page,e,ppi),style=VectorEffects.psdStyle(e,work,ppi,!!vector);
     const canvas=await canvasOf(work,w,h),b=M.box(page,e),x=Math.max(0,Math.floor(b.x*scale)-3),y=Math.max(0,Math.floor(b.y*scale)-3),right=Math.min(w,Math.ceil((b.x+b.w)*scale)+3),bottom=Math.min(h,Math.ceil((b.y+b.h)*scale)+3);if(right<=x||bottom<=y)continue;
     const crop=document.createElement('canvas');crop.width=right-x;crop.height=bottom-y;crop.getContext('2d').drawImage(canvas,-x,-y);canvas.width=1;
@@ -144,7 +211,12 @@ async function psdLayers(page,ppi){await lib('psd');M.mount(page);const vb=Artbo
       const n=Math.max(1,e.querySelectorAll('tspan').length),height=f.height||size+(n-1)*(f.advance||size*f.leading);
       if(point){layer.text.shapeType='point';layer.text.pointBase=[0,0];}else{layer.text.shapeType='box';layer.text.boxBounds=[0,top,f.width,top+height+.001];}layer.text.style.autoLeading=false;
       layer.text.style.leading=f.advance||f.leading*size;layer.text.style.tracking=Math.round((f.spacing||0)/size*1000);
-    }children.push(layer);
+    }
+    if(nativeClip)layer.clipping=true;
+    if(!clipped&&stack?.hasAttribute('opacity')){
+      layer.opacity=Number(stack.getAttribute('opacity'));
+    }
+    children.push(layer);lastStack=clipped&&!nativeClip?null:stack;
   }
   const canvas=await canvasOf(page,w,h);return {width:w,height:h,canvas,children,imageResources:{resolutionInfo:{horizontalResolution:ppi,verticalResolution:ppi,horizontalResolutionUnit:'PPI',verticalResolutionUnit:'PPI',widthUnit:'Inches',heightUnit:'Inches'}}};
 }
