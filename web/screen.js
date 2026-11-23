@@ -632,7 +632,7 @@ function applyLocalProperty(o,m){
   if(m.kind==='stroke'){o.stroke={enabled:m.enabled,width:m.width,color:m.color||o.stroke?.color||'#242735'};return true;}
   if(m.kind==='text'){
     if(!o.previewTextBase)o.previewTextBase={text:o.text,pt:o.pt||12,box:{...o.box},font:o.font};
-    if(o.paragraph&&typeof TypeSpacing!=='undefined'){o.paragraph.runs=TypeSpacing.edited(o.paragraph.runs,o.text,m.value);if(m.pt!=null&&o.pt)o.paragraph.spacing*=m.pt/o.pt;}
+    if(o.paragraph&&typeof TypeSpacing!=='undefined'){if(m.font&&o.paragraph.layout?.font!==m.font)o.paragraph.layout=null;o.paragraph.runs=TypeSpacing.edited(o.paragraph.runs,o.text,m.value);if(m.pt!=null&&o.pt)o.paragraph.spacing*=m.pt/o.pt;}
     o.text=m.value;o.name=o.text.slice(0,38)||'空文字';if(m.pt!=null)o.pt=m.pt;if(m.font)o.font=m.font;
     if(o.paragraph){VectorParagraphs.update(o);return true;}
     if(o.localShape){const lines=o.text.split('\n'),size=(o.pt||12)*mmPt;

@@ -51,7 +51,7 @@
     for(const [edge,x,y] of [['left',0,.5],['right',1,.5],['top',.5,0],['bottom',.5,1]]){const p=map(x,y),h=handles[edge];h.setAttribute('cx',p.x);h.setAttribute('cy',p.y);h.setAttribute('r',4.5/px);}
   }
   function schedule(){if(!tick)tick=requestAnimationFrame(update);}
-  function settings(f){return {runs:f.runs,point:f.point,align:f.align||'left',width:f.width,height:f.height||0,x:f.x,y:f.y,leading:f.leading,advance:f.advance||0,spacing:f.spacing||0};}
+  function settings(f){return {layout:f.layout,runs:f.runs,point:f.point,align:f.align||'left',width:f.width,height:f.height||0,x:f.x,y:f.y,leading:f.leading,advance:f.advance||0,spacing:f.spacing||0};}
   function set(o,frame,key){changeLocally([{kind:'paragraph',id:o.id,frame}],key);schedule();}
   panel.addEventListener('click',e=>{const align=e.target.dataset.paragraphAlign;if(align&&chosen()?.paragraph){set(chosen(),{...settings(chosen().paragraph),align},'');return;}const v=e.target.dataset.textMode;if(v){mode=v;update();}});
   panel.addEventListener('input',e=>{const el=e.target,o=chosen();if(el.tagName!=='INPUT'||!o?.paragraph||el.validity.badInput||!el.validity.valid)return;

@@ -83,7 +83,7 @@ const VectorParagraphs = (() => {
   function info(el){
     const width=Number(el.dataset.paragraphWidth);
     if(!(width>0&&Number.isFinite(width)))return null;
-    return {width,point:el.dataset.psdPoint==='1',runs:TypeSpacing.read(el),align:alignment(el.dataset.textAlign),x:Number(el.dataset.paragraphX)||0,y:Number(el.dataset.paragraphY)||0,leading:Number(el.dataset.leading)||1.2,height:Number(el.dataset.paragraphHeight)||0,advance:Number(el.dataset.lineAdvance)||0,spacing:Number(el.dataset.tracking)||0};
+    return {width,point:el.dataset.psdPoint==='1',runs:TypeSpacing.read(el),layout:TypeSpacing.readLayout(el),align:alignment(el.dataset.textAlign),x:Number(el.dataset.paragraphX)||0,y:Number(el.dataset.paragraphY)||0,leading:Number(el.dataset.leading)||1.2,height:Number(el.dataset.paragraphHeight)||0,advance:Number(el.dataset.lineAdvance)||0,spacing:Number(el.dataset.tracking)||0};
   }
   // The native canvas input and SVG exporter share the browser's line-breaking rules.
   const mirror=document.createElement('div'),metricsText=document.createTextNode(''),marker=document.createElement('span');
@@ -147,12 +147,15 @@ const VectorParagraphs = (() => {
     let cursor=0;
     el.replaceChildren(...lines.map((line,i)=>{
       const span=el.ownerDocument.createElementNS('http://www.w3.org/2000/svg','tspan');
-      span.setAttribute('x',frame.x+frame.width*fraction(frame.align));span.setAttribute('text-anchor',anchor(frame.align));span.setAttribute('y',frame.y+i*advance);span.dataset.line='1';const start=text.indexOf(line,cursor);TypeSpacing.paint(span,line,frame.runs,Math.max(0,start),size,spacing);cursor=Math.max(cursor,start+line.length);if(text[cursor]==='\n')cursor++;return span;
+      span.setAttribute('x',frame.x+frame.width*fraction(frame.align));span.setAttribute('text-anchor',anchor(frame.align));span.setAttribute('y',frame.y+i*advance);span.dataset.line='1';const start=text.indexOf(line,cursor);TypeSpacing.paint(span,line,frame.runs,Math.max(0,start),size,spacing);
+      if(frame.point)TypeSpacing.positionLine(span,frame.layout,text,line,i,size,spacing,frame.x+frame.width*fraction(frame.align),frame.align,frame.runs?TypeSpacing.slice(frame.runs,start,start+1)[0]?.kern:0);
+      cursor=Math.max(cursor,start+line.length);if(text[cursor]==='\n')cursor++;return span;
     }));
     return lines.length;
   }
   function store(el,p){
     for(const [key,value] of Object.entries({paragraphWidth:p.width,paragraphX:p.x,paragraphY:p.y,leading:p.leading,paragraphHeight:p.height||0,lineAdvance:p.advance||0,tracking:p.spacing||0}))el.dataset[key]=String(value);
+    if(p.layout)el.dataset.glyphLayout=JSON.stringify(p.layout);else delete el.dataset.glyphLayout;
     if(p.runs)el.dataset.spacingRuns=JSON.stringify(p.runs);else delete el.dataset.spacingRuns;
     if(p.point===true)el.dataset.psdPoint='1';else if(p.point===false)delete el.dataset.psdPoint;
     el.dataset.textAlign=alignment(p.align);

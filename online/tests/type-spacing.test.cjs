@@ -16,3 +16,17 @@ test('a trailing Photoshop terminator does not introduce an extra run',()=>{
   const result=spacing.fromPSD({text:'A,',style:{tracking:30},styleRuns:[{length:2,style:{}},{length:1,style:{fontSize:60}}]});
   assert.equal(result.style.tracking,30);assert.equal(result.runs,null);
 });
+
+test('Photoshop cached optical pair adjustments are not a change to tracking',()=>{
+  const tx={text:'ABC',shapeType:'point',style:{fontSize:100,tracking:-75,font:{name:'Demo'}}};
+  const story={Editor:{Text:'ABC\r'},'FontVectorData ???':{_type:'/G',
+    21:{0:[1,2,3,0],1:[0,89.5,182,274.5,300]},6:{0:[{7:-3},{}],1:[1,3]}}};
+  spacing.captureLayout([{text:tx}],[story]);
+  const {layout,runs}=spacing.fromPSD(tx);assert.equal(layout.tracking,-75);assert.equal(runs[1].kern,-30);
+  let x;const span={setAttribute:(k,v)=>{if(k==='x')x=v;},querySelectorAll:()=>[]};
+  spacing.positionLine(span,layout,'ABC','ABC',0,100,-6,0,'left');
+  assert.equal(x,'0 91 185');
+  const changed=spacing.edited(runs,'ABC','XBC');assert.equal(spacing.slice(changed,1,2)[0].kern,0);
+  const different={...tx,text:'BCD',vqGlyphLayout:undefined};spacing.captureLayout([{text:different}],[story]);
+  assert.equal(different.vqGlyphLayout,undefined);
+});

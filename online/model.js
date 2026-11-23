@@ -166,6 +166,7 @@ function frame(page,target,pic,fit){
 }
 function setText(e,a){
   const target=e.querySelector('tspan')||e,frame=VectorParagraphs.info(e)||VectorParagraphs.inferred(e);
+  if(a.font&&frame.layout?.font!==a.font)frame.layout=null;
   frame.runs=TypeSpacing.edited(frame.runs,e.dataset.text??e.textContent,a.value);
   const s=getComputedStyle(target),m=world(space.firstChild,e);
   const size=a.pt!=null?a.pt*PT/(Math.hypot(m.c,m.d)||1):parseFloat(s.fontSize);

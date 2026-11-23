@@ -56,6 +56,10 @@ fs.writeFileSync(path.join(out,'screen.js'),ui);fs.writeFileSync(path.join(out,'
 for(const name of ['document-fonts','canvas-type','text-style','layer-tools','artboard-model','artboard-formats','artboard-ui','psd-shapes','appearance','appearance-ui','board-sampler','corner-panel','page-dock','delivery','export-dialog','aligned-stroke','stack-order','type-spacing','paragraphs','model','formats','browser-engine','picking','text-controls','postscript-worker'])fs.copyFileSync(path.join(__dirname,name+'.js'),path.join(out,name+'.js'));
 for(const [from,to] of Object.entries({'fzstd/umd/index.js':'fzstd.js','fflate/umd/index.js':'fflate.js','pdfjs-dist/build/pdf.min.js':'pdf.js','pdfjs-dist/build/pdf.worker.min.js':'pdf.worker.js','pdfjs-dist/cmaps':'cmaps','pdfjs-dist/standard_fonts':'standard_fonts','dompurify/dist/purify.min.js':'purify.js','ag-psd/dist/bundle.js':'psd.js','pdfkit/js/pdfkit.standalone.js':'pdfkit.js','svg-to-pdfkit/source.js':'svg-to-pdf.js','@jspawn/ghostscript-wasm/gs.js':'gs.js','@jspawn/ghostscript-wasm/gs.wasm':'gs.wasm'}))fs.cpSync(path.join(modules,from),path.join(lib,to),{recursive:true});
 fs.copyFileSync(path.join(__dirname,'illustrator-layout.jsx'),path.join(out,'illustrator-layout.jsx'));
+// ag-psd already decodes Photoshop's global text-engine cache while reading Txt2.
+const psdBundle=path.join(lib,'psd.js'),frameTable='const TextFrameSet = engineData2.ResourceDict.TextFrameSet;';
+fs.writeFileSync(psdBundle,replace(fs.readFileSync(psdBundle,'utf8'),frameTable,
+  "if(reader.onTextLayout)reader.onTextLayout(layersByIndex,engineData2.EngineDict['Editors?']);\n    "+frameTable));
 const writer=path.join(lib,'svg-to-pdf.js'),originalWriter=fs.readFileSync(writer,'utf8');
 const oldGlyphLoop=/for \(let j = 0, pos = childElem\._pos; j < pos\.length; j\+\+\) \{[\s\S]*?docWriteGlyph\(pos\[j\]\.glyph\);\s*\}\s*\}/g;
 const glyphLoops=originalWriter.match(oldGlyphLoop);if(glyphLoops?.length!==1)throw Error('PDF 文字写入接口发生变化');
