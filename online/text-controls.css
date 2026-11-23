@@ -17,3 +17,5 @@
 .current-board-unit{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px}.current-board-unit select{flex:1;min-width:0;padding:3px 6px}#artBoardInspector .current-board-unit{margin:0 0 10px}
 
 #cornerMode{margin-left:auto;font-size:12px}.corner-grid:not([hidden]){display:grid;grid-template-columns:1fr 1fr;gap:9px}.corner-grid>div{display:grid;gap:3px;min-width:0}.corner-grid>div:nth-child(3){grid-column:2;grid-row:2}.corner-grid input{width:100%;min-width:0}.corner-grid label{font-size:12px;color:var(--muted)}
+
+.ps-tracking{display:grid;grid-template-columns:1fr 74px;gap:4px 8px;align-items:center;margin:8px 0}.ps-tracking label,.ps-tracking small{font-size:12px}.ps-tracking small{color:var(--muted)}.ps-tracking input{width:100%;min-width:0}.ps-tracking input[type=range]{grid-column:1/-1}

@@ -67,7 +67,26 @@ const VectorFonts=(()=>{
       const record=records.get(id);record.spans.add(tspan);tspan.dataset.originalFont=name;
       const visible=glyphs.filter(g=>g&&typeof g==='object'&&(g.isInFont||font.missingFile||/^\s+$/.test(g.unicode)));
       for(const g of visible){if([...g.unicode||''].length===1&&[...g.fontChar||''].length===1)record.codes.set(g.unicode.codePointAt(0),g.fontChar.codePointAt(0));}
-      tspan.dataset.unicode=(tspan.dataset.unicode||'')+visible.map(g=>g.unicode??g.fontChar).join('');
+      const text=visible.map(g=>g.unicode??g.fontChar).join('');
+      // Retain PDF Tc for editing. The unmodified glyphs already have explicit x positions.
+      const spacing=this.current.charSpacing||0,prior=tspan.dataset.unicode||'';
+      if(text&&(spacing||tspan.dataset.pdfSpacing||(!font.vertical&&glyphs.some(g=>typeof g==='number')))){
+        const runs=JSON.parse(tspan.dataset.pdfSpacing||'[]');
+        if(!runs.length&&prior.length)runs.push([prior.length,0]);
+        let previous=null;
+        for(const glyph of glyphs){
+          if(typeof glyph==='number'){
+            // A TJ number following a glyph adjusts its advance. Large jumps usually position separate objects.
+            if(previous&&!font.vertical&&Math.abs(glyph)<=1000)previous[1]-=glyph*this.current.fontSize/1000;
+          }else if(glyph&&(glyph.isInFont||font.missingFile||/^\s+$/.test(glyph.unicode))){
+            previous=[(glyph.unicode??glyph.fontChar).length,spacing];runs.push(previous);
+          }
+        }
+        const merged=[];
+        for(const part of runs){if(merged.at(-1)?.[1]===part[1])merged.at(-1)[0]+=part[0];else merged.push(part);}
+        tspan.dataset.pdfSpacing=JSON.stringify(merged);
+      }
+      tspan.dataset.unicode=prior+text;
     };return records;
   }
   function bytes64(s){return Uint8Array.from(atob(s),c=>c.charCodeAt(0));}

@@ -4,7 +4,9 @@
   let mode='layer',gesture=null,tick=0;
   const panel=document.createElement('div');panel.className='text-layout-controls';
   panel.innerHTML='<div class="text-modes"><button type="button" data-text-mode="layer">文字图层</button><button type="button" data-text-mode="frame">文本框</button></div><small id="textModeHint"></small><div class="paragraph-align" role="group" aria-label="段落对齐"><button type="button" data-paragraph-align="left">左对齐</button><button type="button" data-paragraph-align="center">居中</button><button type="button" data-paragraph-align="right">右对齐</button></div><div class="source-font-info"><small id="sourceFontInfo"></small><button type="button" id="matchSourceFont" hidden>匹配本机原字体</button></div><div class="text-metrics"><label>行高 (pt)<input id="textLeading" type="number" min="0.1" max="2000" step="any" placeholder="自动"></label><label>字间距 (pt)<input id="textTracking" type="number" min="-100" max="1000" step="any"></label><label>框宽 (mm)<input id="textFrameWidth" type="number" min=".1" max="5000" step="any"></label><label>框高 (mm)<input id="textFrameHeight" type="number" min=".1" max="5000" step="any" placeholder="自动"></label></div><small id="textOverflow" role="status"></small>';
-  $('typeBox').append(panel);
+  const tracking=document.createElement('div');
+  tracking.className='ps-tracking';tracking.innerHTML='<label for="psTracking">Photoshop 字距 <small>1/1000 em</small></label><input id="psTracking" type="number" step="1"><input id="psTrackingSlider" type="range" min="-200" max="500" step="1" aria-label="调整 Photoshop 字距">';
+  panel.querySelector('.text-metrics').before(tracking);$('typeBox').append(panel);
   const overlay=document.createElementNS(ns,'svg');overlay.id='paragraphFrame';overlay.setAttribute('aria-hidden','true');$('paper').append(overlay);
   const outline=document.createElementNS(ns,'polygon');outline.setAttribute('vector-effect','non-scaling-stroke');overlay.append(outline);
   const handles={};for(const edge of ['left','right','top','bottom']){
@@ -37,6 +39,9 @@
     for(const button of panel.querySelectorAll('[data-text-mode]'))button.setAttribute('aria-pressed',String(button.dataset.textMode===mode));
     $('textModeHint').textContent=mode==='frame'?'拖动绿色边点调整排版范围，保持字号。':'双击文字直接输入。拖动蓝色角点缩放，Shift 等比缩放。';
     setField('textLeading',f.advance?f.advance*b.sy/ptMM:null);$('textLeading').placeholder='自动 · '+Number((f.leading*o.pt).toFixed(2));
+    const trackingValue=1000*(f.spacing||0)/b.size;
+    setField('psTracking',trackingValue);
+    $('psTrackingSlider').min=Math.min(-200,Math.floor(trackingValue));$('psTrackingSlider').max=Math.max(500,Math.ceil(trackingValue));$('psTrackingSlider').value=trackingValue;
     setField('textTracking',(f.spacing||0)*b.sx/ptMM);setField('textFrameWidth',f.width*b.sx);setField('textFrameHeight',f.height?f.height*b.sy:null);
     $('textOverflow').textContent=o.overflow?'另有 '+o.overflow+' 行超出框高。拉高文本框或清空框高可显示。':'';
     if(!framing)return;
@@ -46,19 +51,20 @@
     for(const [edge,x,y] of [['left',0,.5],['right',1,.5],['top',.5,0],['bottom',.5,1]]){const p=map(x,y),h=handles[edge];h.setAttribute('cx',p.x);h.setAttribute('cy',p.y);h.setAttribute('r',4.5/px);}
   }
   function schedule(){if(!tick)tick=requestAnimationFrame(update);}
-  function settings(f){return {align:f.align||'left',width:f.width,height:f.height||0,x:f.x,y:f.y,leading:f.leading,advance:f.advance||0,spacing:f.spacing||0};}
+  function settings(f){return {runs:f.runs,point:f.point,align:f.align||'left',width:f.width,height:f.height||0,x:f.x,y:f.y,leading:f.leading,advance:f.advance||0,spacing:f.spacing||0};}
   function set(o,frame,key){changeLocally([{kind:'paragraph',id:o.id,frame}],key);schedule();}
   panel.addEventListener('click',e=>{const align=e.target.dataset.paragraphAlign;if(align&&chosen()?.paragraph){set(chosen(),{...settings(chosen().paragraph),align},'');return;}const v=e.target.dataset.textMode;if(v){mode=v;update();}});
   panel.addEventListener('input',e=>{const el=e.target,o=chosen();if(el.tagName!=='INPUT'||!o?.paragraph||el.validity.badInput||!el.validity.valid)return;
     const n=el.value===''?null:el.valueAsNumber,b=localFrame(o),f=settings(o.paragraph);
-    switch(el.id){case 'textLeading':f.advance=n===null?0:n*ptMM/b.sy;break;case 'textTracking':f.spacing=(n||0)*ptMM/b.sx;break;
-      case 'textFrameWidth':if(n===null)return;f.width=n/b.sx;break;case 'textFrameHeight':f.height=n===null?0:n/b.sy;break;default:return;}
+    switch(el.id){case 'psTracking':case 'psTrackingSlider':if(n===null)return;f.spacing=n*b.size/1000;break;case 'textLeading':f.advance=n===null?0:n*ptMM/b.sy;break;case 'textTracking':f.spacing=(n||0)*ptMM/b.sx;break;
+      case 'textFrameWidth':if(n===null)return;f.point=false;f.width=n/b.sx;break;case 'textFrameHeight':f.point=false;f.height=n===null?0:n/b.sy;break;default:return;}
     set(o,f,o.id+'|'+el.id);
   });
+  panel.addEventListener('change',()=>{inputUndoKey='';});
   function localPoint(e,b){const p=point(e.clientX,e.clientY);return new DOMPoint(p.x,p.y).matrixTransform(b.m.inverse());}
   overlay.addEventListener('pointerdown',e=>{const edge=e.target.dataset.frameEdge,o=chosen();if(!edge||!o?.paragraph||working)return;e.preventDefault();e.stopPropagation();const b=localFrame(o);
     gesture={id:e.pointerId,edge,o,b,start:localPoint(e,b),f:settings(o.paragraph),key:crypto.randomUUID()};overlay.setPointerCapture(e.pointerId);});
-  overlay.addEventListener('pointermove',e=>{if(!gesture||gesture.id!==e.pointerId)return;e.stopPropagation();const {edge,o,b,start,key}=gesture,f={...gesture.f},p=localPoint(e,b),dx=p.x-start.x,dy=p.y-start.y;
+  overlay.addEventListener('pointermove',e=>{if(!gesture||gesture.id!==e.pointerId)return;e.stopPropagation();const {edge,o,b,start,key}=gesture,f={...gesture.f,point:false},p=localPoint(e,b),dx=p.x-start.x,dy=p.y-start.y;
     if(edge==='right')f.width=Math.max(.1/b.sx,b.width+dx);
     if(edge==='left'){f.width=Math.max(.1/b.sx,b.width-dx);f.x+=b.width-f.width;}
     if(edge==='bottom')f.height=Math.max(b.size,b.height+dy);

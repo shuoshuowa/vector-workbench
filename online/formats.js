@@ -32,9 +32,9 @@ function svgPage(s,project=false){
   // Sanitize untrusted SVG before inserting it anywhere with access to the document.
   const embeddedFonts=[];
   for(const style of raw.querySelectorAll('style'))for(const m of style.textContent.matchAll(/@font-face\s*\{\s*font-family:\s*"([\w-]+)";\s*src:\s*url\((data:[\w/+.-]+;base64,[A-Za-z0-9+/=]+)\);?\s*\}/g))embeddedFonts.push('@font-face{font-family:"'+m[1]+'";src:url('+m[2]+');}');
-  const declarations=['fill','stroke','stroke-width','letter-spacing','font-size','font-family','font-weight','font-style','opacity','display','clip-path','fill-rule','stroke-linecap','stroke-linejoin','text-anchor','stop-color','stop-opacity'];
+  const declarations=['fill','stroke','stroke-width','letter-spacing','font-kerning','font-size','font-family','font-weight','font-style','opacity','display','clip-path','fill-rule','stroke-linecap','stroke-linejoin','text-anchor','stop-color','stop-opacity'];
   for(const el of raw.querySelectorAll('[style]'))for(const key of declarations){const value=el.style.getPropertyValue(key);if(value)el.setAttribute(key,value);}
-  const safe=DOMPurify.sanitize(M.xml(raw),{USE_PROFILES:{svg:true,svgFilters:true},FORBID_TAGS:['style','a','use-external','foreignObject','animate','set','animateTransform','animateMotion','image-script'],FORBID_ATTR:['style'],ALLOW_DATA_ATTR:project,ADD_ATTR:['data-psd-clip-stack','data-psd-clipped','data-psd-base','data-psd-paint','data-psd-alpha','data-corner-radii','data-stroke-position','data-stroke-ink','data-edge-width','data-text-align','data-psd-point','data-paragraph-width','data-paragraph-height','data-paragraph-x','data-paragraph-y','data-line-advance','data-tracking','data-leading','data-text','data-unicode','data-original-font','data-edit-family','data-vq-fx','data-solid-fill'],ADD_DATA_URI_TAGS:['image']});
+  const safe=DOMPurify.sanitize(M.xml(raw),{USE_PROFILES:{svg:true,svgFilters:true},FORBID_TAGS:['style','a','use-external','foreignObject','animate','set','animateTransform','animateMotion','image-script'],FORBID_ATTR:['style'],ALLOW_DATA_ATTR:project,ADD_ATTR:['font-kerning','data-psd-clip-stack','data-psd-clipped','data-psd-base','data-psd-paint','data-psd-alpha','data-corner-radii','data-stroke-position','data-stroke-ink','data-edge-width','data-text-align','data-psd-point','data-paragraph-width','data-paragraph-height','data-paragraph-x','data-paragraph-y','data-line-advance','data-tracking','data-spacing-runs','data-leading','data-text','data-unicode','data-original-font','data-edit-family','data-vq-fx','data-solid-fill'],ADD_DATA_URI_TAGS:['image']});
   const page=M.parse(safe);
   for(const el of [page,...page.querySelectorAll('*')])for(const a of [...el.attributes]){
     if(a.localName==='href'&&!a.value.startsWith('#')&&!/^data:image\/(png|jpeg|webp|gif);base64,/i.test(a.value))el.removeAttributeNode(a);
@@ -87,17 +87,17 @@ async function psdPage(bytes){await lib('psd');const psd=agPsd.readPsd(bytes,{sk
       par.append(stack);
     }
   }
-  function layerNode(l){let el;
+  function layerNode(l){let el;const type=l.text?.text&&TypeSpacing.fromPSD(l.text);
     if(l.children){el=M.make('g',{'data-layer':l.name});layers(l.children,el);}
     else if(l.vectorFill&&(el=VectorShapeFills.importLayer(l,resolution))){/* Editable Photoshop fill and Bézier mask. */}
-    else if(l.text?.text&&(!l.text.styleRuns||l.text.styleRuns.length<=1)){
-      const tx=l.text,st={...tx.style,...tx.styleRuns?.[0]?.style},para={...tx.paragraphStyle,...tx.paragraphStyleRuns?.[0]?.style},align=VectorParagraphs.alignment(para.justification),c=st.fillColor||{},size=st.fontSize||tx.style?.fontSize||16;
+    else if(type){
+      const tx=l.text,st=type.style,para={...tx.paragraphStyle,...tx.paragraphStyleRuns?.[0]?.style},align=VectorParagraphs.alignment(para.justification),c=st.fillColor||{},size=st.fontSize||tx.style?.fontSize||16;
       const m=tx.transform||[1,0,0,1,l.left||0,(l.top||0)+size];
       el=M.mark(M.make('text',{transform:'matrix('+m.join(' ')+')','font-size':size,'font-family':st.font?.name||'sans-serif',fill:'rgb('+[c.r||0,c.g||0,c.b||0].join(',')+')'}),'text');
       if(st.font?.name){el.dataset.originalFont=st.font.name;el.style.fontWeight=String(st.fauxBold?700:VectorFonts.styleWeight(st.font.name));el.style.fontStyle=st.fauxItalic?'italic':VectorFonts.italicStyle(st.font.name);}
       el.dataset.text=tx.text.replace(/\r\n?/g,'\n');
       if(tx.shapeType==='box'&&tx.boxBounds?.length===4){
-        const [left,top,right,bottom]=tx.boxBounds,flow={x:left,y:top+.86*size,width:Math.max(.01,right-left),height:Math.max(0,bottom-top),align,leading:para.autoLeading||1.2,advance:st.autoLeading===false?st.leading||0:0,spacing:(st.tracking||0)*size/1000};
+        const [left,top,right,bottom]=tx.boxBounds,flow={x:left,y:top+.86*size,width:Math.max(.01,right-left),height:Math.max(0,bottom-top),align,runs:type.runs,leading:para.autoLeading||1.2,advance:st.autoLeading===false?st.leading||0:0,spacing:(st.tracking||0)*size/1000};
         VectorParagraphs.store(el,flow);VectorParagraphs.render(el,el.dataset.text,flow,size,st.font?.name||'sans-serif',el.style.fontWeight,el.style.fontStyle);
       }else{
         const [x,y]=tx.pointBase||[0,0],leading=para.autoLeading||1.2,advance=st.autoLeading===false&&st.leading>0?st.leading:0,spacing=(st.tracking||0)*size/1000;
@@ -107,9 +107,10 @@ async function psdPage(bytes){await lib('psd');const psd=agPsd.readPsd(bytes,{sk
         el.dataset.text.split('\n').forEach((line,i)=>{
           while(offset>=runEnd&&runIndex+1<(tx.paragraphStyleRuns?.length||0))runEnd+=tx.paragraphStyleRuns[++runIndex].length;
           const lineAlign=tx.paragraphStyleRuns?.[runIndex]?.style?.justification||para.justification;
-          const sp=M.make('tspan',{x,y:y+i*(advance||leading*size),'text-anchor':VectorParagraphs.anchor(lineAlign),'data-line':'1'});sp.textContent=line;el.append(sp);offset+=line.length+1;
+          const sp=M.make('tspan',{x,y:y+i*(advance||leading*size),'text-anchor':VectorParagraphs.anchor(lineAlign),'data-line':'1'});TypeSpacing.paint(sp,line,type.runs,offset,size,spacing);el.append(sp);offset+=line.length+1;
         });
-        if(width>0)VectorParagraphs.store(el,{x:x-width*VectorParagraphs.fraction(align),y,width,leading,advance,spacing,align});
+        const frameWidth=width>0?width:Math.max(size,(l.right-l.left)/(Math.hypot(m[0],m[1])||1));
+        VectorParagraphs.store(el,{x:x-frameWidth*VectorParagraphs.fraction(align),y,width:frameWidth,leading,advance,spacing,align,runs:type.runs,point:true});
       }
     }else if(l.canvas){el=M.mark(M.make('image',{x:l.left||0,y:l.top||0,width:l.canvas.width,height:l.canvas.height,href:l.canvas.toDataURL()}),'image',l.name);}
     if(el){if(l.opacity!=null)el.setAttribute('opacity',l.opacity);const fx=VectorEffects.fromPsd(l,mm);if(fx?.gradient&&el.localName==='image')el=VectorEffects.rasterGradient(el,l.fillOpacity??1);const border=l.effects?.stroke?.find(s=>s.enabled!==false&&s.fillType==='color');if(border&&(el.localName==='text'||el.dataset.kind==='image')){if(el.dataset.kind==='image')el=VectorStroke.wrapBitmap(el);const c=border.color||{};const m=el.transform.baseVal.consolidate()?.matrix,scale=m?Math.hypot(m.c,m.d)||1:1;const ink='#'+[c.r,c.g,c.b].map(v=>Math.round(v||0).toString(16).padStart(2,'0')).join('');VectorStroke.store(el,border.position||'center',ink,(border.size?.value??1)/scale);}if(fx&&el.dataset.vq){el.dataset.vqFx=JSON.stringify({...VectorEffects.read(el),...fx});el.dataset.solidFill=el.dataset.solidFill||el.getAttribute('fill')||'#000000';}}
@@ -211,6 +212,7 @@ async function psdLayers(page,ppi){await lib('psd');M.mount(page);const vb=Artbo
       const n=Math.max(1,e.querySelectorAll('tspan').length),height=f.height||size+(n-1)*(f.advance||size*f.leading);
       if(point){layer.text.shapeType='point';layer.text.pointBase=[0,0];}else{layer.text.shapeType='box';layer.text.boxBounds=[0,top,f.width,top+height+.001];}layer.text.style.autoLeading=false;
       layer.text.style.leading=f.advance||f.leading*size;layer.text.style.tracking=Math.round((f.spacing||0)/size*1000);
+      if(f.runs)layer.text.styleRuns=f.runs.map(r=>({length:r.length,style:{tracking:layer.text.style.tracking+r.delta,kerning:r.kern,autoKerning:r.auto}}));
     }
     if(nativeClip)layer.clipping=true;
     if(!clipped&&stack?.hasAttribute('opacity')){

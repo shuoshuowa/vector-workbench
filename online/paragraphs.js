@@ -59,6 +59,18 @@ const VectorParagraphs = (() => {
           }
         }
         el.dataset.text=logicalText(block.lines);
+        if(block.lines.some(l=>l.runs.some(r=>r.span.dataset.pdfSpacing))){
+          const parts=[];let offset=0;
+          for(const l of block.lines)for(const r of l.runs){
+            const start=el.dataset.text.indexOf(r.value,offset);
+            if(start>offset)parts.push([start-offset,parts.at(-1)?.[1]||0]);
+            parts.push(...JSON.parse(r.span.dataset.pdfSpacing||JSON.stringify([[r.value.length,0]])));
+            offset=Math.max(offset,start)+r.value.length;
+          }
+          const counts=new Map();for(const [length,s] of parts)counts.set(s,(counts.get(s)||0)+length);
+          const spacing=[...counts].sort((a,b)=>b[1]-a[1])[0]?.[0]||0;el.dataset.tracking=String(spacing);
+          if(parts.some(p=>p[1]!==spacing))el.dataset.spacingRuns=JSON.stringify(parts.map(([length,s])=>({length,delta:(s-spacing)*1000/base.size,kern:0,auto:true})));
+        }
         if(base.span.dataset.originalFont){el.dataset.originalFont=base.span.dataset.originalFont;el.dataset.editFamily=base.span.dataset.editFamily;}
       }
       changed=true;
@@ -71,7 +83,7 @@ const VectorParagraphs = (() => {
   function info(el){
     const width=Number(el.dataset.paragraphWidth);
     if(!(width>0&&Number.isFinite(width)))return null;
-    return {width,align:alignment(el.dataset.textAlign),x:Number(el.dataset.paragraphX)||0,y:Number(el.dataset.paragraphY)||0,leading:Number(el.dataset.leading)||1.2,height:Number(el.dataset.paragraphHeight)||0,advance:Number(el.dataset.lineAdvance)||0,spacing:Number(el.dataset.tracking)||0};
+    return {width,point:el.dataset.psdPoint==='1',runs:TypeSpacing.read(el),align:alignment(el.dataset.textAlign),x:Number(el.dataset.paragraphX)||0,y:Number(el.dataset.paragraphY)||0,leading:Number(el.dataset.leading)||1.2,height:Number(el.dataset.paragraphHeight)||0,advance:Number(el.dataset.lineAdvance)||0,spacing:Number(el.dataset.tracking)||0};
   }
   // The native canvas input and SVG exporter share the browser's line-breaking rules.
   const mirror=document.createElement('div'),metricsText=document.createTextNode(''),marker=document.createElement('span');
@@ -90,16 +102,30 @@ const VectorParagraphs = (() => {
     baselineOffset=marker.getBoundingClientRect().top-mirror.getBoundingClientRect().top;marker.remove();baselineKey=key;
     return baselineOffset;
   }
-  function splitLines(text,width,size,family,weight,style,spacing){
-    const key=JSON.stringify([text,width,size,family,weight,style,spacing]);
+  function splitLines(text,width,size,family,weight,style,spacing,runs){
+    const key=JSON.stringify([text,width,size,family,weight,style,spacing,runs]);
     if(key===previousKey)return previousLines;
     Object.assign(mirror.style,typography(width,size,family,weight,style,spacing,size*1.2));
-    const range=document.createRange(),lines=[];
+    const range=document.createRange(),lines=[];let offset=0;
     for(const source of text.replace(/\r\n?/g,'\n').split('\n')){
+      const start=offset;offset+=source.length+1;
       if(!source){lines.push('');continue;}
-      metricsText.data=source;const offsets=[0];
+      mirror.replaceChildren(metricsText);metricsText.data=source;
+      const nodes=[];
+      if(runs){
+        mirror.replaceChildren();let pos=0;
+        for(const part of TypeSpacing.slice(runs,start,start+source.length)){
+          const span=document.createElement('span');
+          span.style.letterSpacing=(spacing*100/size+(part.delta+part.kern)/10)+'px';
+          span.textContent=source.slice(pos,pos+part.length);mirror.append(span);
+          nodes.push({node:span.firstChild,start:pos,end:pos+part.length});pos+=part.length;
+        }
+      }
+      const offsets=[0];
       for(const cluster of chars(source))offsets.push(offsets.at(-1)+cluster.length);
-      const top=i=>{range.setStart(metricsText,offsets[i]);range.setEnd(metricsText,offsets[i+1]);return range.getBoundingClientRect().top;};
+      const top=i=>{const at=offsets[i],part=nodes.find(n=>n.start<=at&&at<n.end);
+        const node=part?.node||metricsText,j=at-(part?.start||0);
+        range.setStart(node,j);range.setEnd(node,Math.min(node.length,j+offsets[i+1]-at));return range.getBoundingClientRect().top;};
       // Several scripts on one baseline can use fonts with different ascenders.
       for(let i=0;i<offsets.length-1;){
         const start=i,y=top(i);let lo=i+1,hi=offsets.length-1;
@@ -107,7 +133,7 @@ const VectorParagraphs = (() => {
         i=lo;const line=source.slice(offsets[start],offsets[i]);lines.push(i<offsets.length-1?line.trimEnd():line);
       }
     }
-    previousKey=key;previousLines=lines;return lines;
+    mirror.replaceChildren(metricsText);previousKey=key;previousLines=lines;return lines;
   }
   function render(el,text,frame,size,font,weight='400',style='normal'){
     // Embedded subsets often encode the visible glyphs in the private-use area.
@@ -115,17 +141,20 @@ const VectorParagraphs = (() => {
     el.style.fontFamily=family;el.style.fontSize=size+'px';el.style.fontWeight=weight;el.style.fontStyle=style;
     el.setAttribute('xml:space','preserve');
     const spacing=frame.spacing||0,advance=frame.advance||frame.leading*size;
-    el.style.letterSpacing=spacing+'px';const all=splitLines(text,frame.width,size,family,weight,style,spacing);
+    el.style.letterSpacing=spacing+'px';const all=frame.point?text.split('\n'):splitLines(text,frame.width,size,family,weight,style,spacing,frame.runs);
     const lines=frame.height>0?all.slice(0,Math.max(1,1+Math.floor((frame.height-size+.0001)/advance))):all;
     el.dataset.overflow=String(all.length-lines.length);
+    let cursor=0;
     el.replaceChildren(...lines.map((line,i)=>{
       const span=el.ownerDocument.createElementNS('http://www.w3.org/2000/svg','tspan');
-      span.setAttribute('x',frame.x+frame.width*fraction(frame.align));span.setAttribute('text-anchor',anchor(frame.align));span.setAttribute('y',frame.y+i*advance);span.dataset.line='1';span.textContent=line;return span;
+      span.setAttribute('x',frame.x+frame.width*fraction(frame.align));span.setAttribute('text-anchor',anchor(frame.align));span.setAttribute('y',frame.y+i*advance);span.dataset.line='1';const start=text.indexOf(line,cursor);TypeSpacing.paint(span,line,frame.runs,Math.max(0,start),size,spacing);cursor=Math.max(cursor,start+line.length);if(text[cursor]==='\n')cursor++;return span;
     }));
     return lines.length;
   }
   function store(el,p){
     for(const [key,value] of Object.entries({paragraphWidth:p.width,paragraphX:p.x,paragraphY:p.y,leading:p.leading,paragraphHeight:p.height||0,lineAdvance:p.advance||0,tracking:p.spacing||0}))el.dataset[key]=String(value);
+    if(p.runs)el.dataset.spacingRuns=JSON.stringify(p.runs);else delete el.dataset.spacingRuns;
+    if(p.point===true)el.dataset.psdPoint='1';else if(p.point===false)delete el.dataset.psdPoint;
     el.dataset.textAlign=alignment(p.align);
   }
   function inferred(el){

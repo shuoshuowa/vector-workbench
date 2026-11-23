@@ -166,9 +166,11 @@ function frame(page,target,pic,fit){
 }
 function setText(e,a){
   const target=e.querySelector('tspan')||e,frame=VectorParagraphs.info(e)||VectorParagraphs.inferred(e);
-  VectorParagraphs.store(e,frame);
+  frame.runs=TypeSpacing.edited(frame.runs,e.dataset.text??e.textContent,a.value);
   const s=getComputedStyle(target),m=world(space.firstChild,e);
   const size=a.pt!=null?a.pt*PT/(Math.hypot(m.c,m.d)||1):parseFloat(s.fontSize);
+  if(a.pt!=null&&!a.spacingFromStyle)frame.spacing*=size/(parseFloat(s.fontSize)||size);
+  VectorParagraphs.store(e,frame);
   const source=VectorFonts.metadata(e),requested=a.font||source?.name||s.fontFamily;
   const family=VectorFonts.family(requested,source),weight=s.fontWeight,style=s.fontStyle,fill=s.fill;
   if(source&&requested!==source.name){delete e.dataset.originalFont;delete e.dataset.editFamily;}
